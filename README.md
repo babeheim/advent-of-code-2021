@@ -10,22 +10,14 @@ https://carbon.now.sh/ to show off code
 - [Hvitfeldt's solution](https://emilhvitfeldt.github.io/rstats-adventofcode/2021.html?panelset=day-2)
 
 
+
 # Day 8: Seven Segment Search
 
 https://adventofcode.com/2021/day/8
 
-The seven segments of a seven-segment display are labelled a thru g
+The seven segments of a seven-segment display are labelled `a` thru `g`, and can display any digit from 0 to 9:
 
- aaaa
-b    c
-b    c
- dddd
-e    f
-e    f
- gggg
-
-They can be used to display any digit from 0 to 9:
-
+```
    0:      1:      2:      3:      4:
  aaaa    ....    aaaa    aaaa    ....
 b    c  .    c  .    c  .    c  b    c
@@ -44,112 +36,16 @@ b    .  b    .  .    c  b    c  b    c
 .    f  e    f  .    f  e    f  .    f
  gggg    gggg    ....    gggg    gggg
 
-1:   c  f
-7: a c  f
-4:  bcd f
+```
 
-2: a cde g
-3: a cd fg
-5: ab d fg
-
-0: abc efg
-6: ab defg
-9: abcd fg
-
-8: abcdefg
-
-However, the signal inputs, also labelled a to g, have been randomized for each 4-digit display.
-
-For each 4-digit panel, you watch it cycle through numbers until you see all 10 unique combinations of signals, and record those 10 patterns. For each panel, we also have a 4-digit number to decode, represented as:
-
-  the ten unique signal patterns | the four digit output to decode
-
-You don't know which signals correspond to which segments, but can identify which number the signal group is trying to represent by the *number* of signals involved. First, we focus on the *easy* cases: "1", "7", "4", and "8". Our first task is to take the 4-digit output and ask, how many times do digits 1, 4, 7, or 8 appear?
-
-(Obviously the next step will be to decode all seven signals and thus the numbers themselves)
-
-```r
-
-count_simple_numbers <- function(path) {
-  x <- readLines(path)
-  targets <- rep(NA, length(x))
-  for (i in 1:length(x)) {
-    targets[i] <- strsplit(x[i], " \\| ")[[1]][2]
-  }
-  # how many words in targets have 2, 3, 4 or 7 characters?
-  targets <- strsplit(targets, split = "\\s")
-  counts <- unlist(lapply(targets, function(z) sum(nchar(z) %in% c(2, 3, 4, 7))))
-  sum(counts)
-}
-
-# easy game bap bap
-count_simple_numbers("day8_input_test.txt") == 26
-count_simple_numbers("day8_input.txt") == 412
-
-decode_targets <- function(x, mapping) {
-  if (length(x) == 1) {
-    encoded <- strsplit(x, split = "")[[1]]
-    decoded <- paste(letters[match(encoded, mapping)], collapse = "")
-    out <- rep(NA, nchar(decoded))
-    for (i in 1:length(out)) {
-      if (decoded[i] == "cf") out[i] <- 1
-      if (decoded[i] == "acf") out[i] <- 7
-      if (decoded[i] == "bcdf") out[i] <- 4
-      if (decoded[i] == "acdeg") out[i] <- 2
-      if (decoded[i] == "acdfg") out[i] <- 3 # oh that's a nice contrast, 2 vs 3
-      if (decoded[i] == "abdfg") out[i] <- 5 # oh that's a nice contrast, 3 vs 5
-      if (decoded[i] == "abcefg") out[i] <- 0
-      if (decoded[i] == "abdefg") out[i] <- 6
-      if (decoded[i] == "abcdfg") out[i] <- 9
-      if (decoded[i] == "abcdefg") out[i] <- 8
-    }
-  }
-  if (length(x) > 1) {
-    out <- sapply(x, decode_targets)
-  }
-  return(out)
-}
-
-sum_decodings <- function(path) {
-  x <- readLines(path)
-  patterns <- rep(NA, length(x))
-  encoded_targets <- rep(NA, length(x))
-  for (i in 1:length(x)) {
-    patterns[i] <- strsplit(x[i], " \\| ")[[1]][1]
-    encoded_targets[i] <- strsplit(x[i], " \\| ")[[1]][2]
-  }
-  patterns <- strsplit(patterns, split = "\\s")
-  encoded_targets <- strsplit(encoded_targets, split = "\\s")
-  decoded_targets <- vector("list", length(encoded_targets))
-  for (i in 1:length(patterns)) {
-    mapping <- decode_pattern(patterns[[i]]) # the hard part
-    decoded_targets[[i]] <- decode_target(encoded_targets[[i]], mapping)
-  }
-  sum(unlist(lapply(decoded_targets, sum)))
-}
-
-# how to decode the first one?
-
-# looking at one by itself, we know the two possible mappings for segments "c" and "f"
-encoded_one <- "be"
-# b -> c and e -> f
-# e -> c and f -> f
-
-# comparing one to seven, you can figure out the mapping to segment 'a' exactly
-# its the one that is new!
-encoded_seven <- "bde"
-# d -> a
-
-# comparing one to four, you can figure out the two possibilities for mapping "b" and "d"
-encoded_four <- "bceg"
-# c -> b or g -> b
-# g -> d or c -> d
-
-# i think we can identify five then, it contains signal for "a", which we know exactly, and the signals for b and d which must both be present, and also f, which we have narrowed down to one of two possibilities
-# by process of elimination, the mapping to g should be known exactly then
-# -> g
+We are given ciphers in the following format:
 
 ```
+be cfbegad cbdgef fgaecd cgeb fdcge agebfd fecdb fabcd edb |
+fdgacbe cefdb cefbgd gcbe
+```
+
+Before the `|` separator, we have ten patterns which represent the ten digits, but the meaning of each letter has been scrambled with respect to the correct segment for that digit. After the `|` separator is a set of four digits encoded by this cipher, which we want to de-cipher. There are ten such ciphers in the training set, and two hundred ciphers in the validation set.
 
 
 
@@ -212,7 +108,7 @@ points(479, 96987919, pch = 20)
 ```
 
 
-# Day 6: Lanternfish
+# Day 6: Lanternfish population growth
 
 https://adventofcode.com/2021/day/6
 
