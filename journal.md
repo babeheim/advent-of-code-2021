@@ -1,11 +1,226 @@
 
 https://adventofcode.com/
+https://carbon.now.sh/ to show off code
+
+# 2021-12-08 - Advent of Code Day 8: Seven Segment Search
+
+https://adventofcode.com/2021/day/8
+
+The seven segments of a seven-segment display are labelled a thru g
+
+ aaaa
+b    c
+b    c
+ dddd
+e    f
+e    f
+ gggg
+
+They can be used to display any digit from 0 to 9:
+
+   0:      1:      2:      3:      4:
+ aaaa    ....    aaaa    aaaa    ....
+b    c  .    c  .    c  .    c  b    c
+b    c  .    c  .    c  .    c  b    c
+ ....    ....    dddd    dddd    dddd
+e    f  .    f  e    .  .    f  .    f
+e    f  .    f  e    .  .    f  .    f
+ gggg    ....    gggg    gggg    ....
+
+  5:      6:      7:      8:      9:
+ aaaa    aaaa    aaaa    aaaa    aaaa
+b    .  b    .  .    c  b    c  b    c
+b    .  b    .  .    c  b    c  b    c
+ dddd    dddd    ....    dddd    dddd
+.    f  e    f  .    f  e    f  .    f
+.    f  e    f  .    f  e    f  .    f
+ gggg    gggg    ....    gggg    gggg
+
+1:   c  f
+7: a c  f
+4:  bcd f
+
+2: a cde g
+3: a cd fg
+5: ab d fg
+
+0: abc efg
+6: ab defg
+9: abcd fg
+
+8: abcdefg
+
+However, the signal inputs, also labelled a to g, have been randomized for each 4-digit display.
+
+For each 4-digit panel, you watch it cycle through numbers until you see all 10 unique combinations of signals, and record those 10 patterns. For each panel, we also have a 4-digit number to decode, represented as:
+
+  the ten unique signal patterns | the four digit output to decode
+
+You don't know which signals correspond to which segments, but can identify which number the signal group is trying to represent by the *number* of signals involved. First, we focus on the *easy* cases: "1", "7", "4", and "8". Our first task is to take the 4-digit output and ask, how many times do digits 1, 4, 7, or 8 appear?
+
+(Obviously the next step will be to decode all seven signals and thus the numbers themselves)
+
+```r
+
+count_simple_numbers <- function(path) {
+  x <- readLines(path)
+  targets <- rep(NA, length(x))
+  for (i in 1:length(x)) {
+    targets[i] <- strsplit(x[i], " \\| ")[[1]][2]
+  }
+  # how many words in targets have 2, 3, 4 or 7 characters?
+  targets <- strsplit(targets, split = "\\s")
+  counts <- unlist(lapply(targets, function(z) sum(nchar(z) %in% c(2, 3, 4, 7))))
+  sum(counts)
+}
+
+# easy game bap bap
+count_simple_numbers("day8_input_test.txt") == 26
+count_simple_numbers("day8_input.txt") == 412
+
+decode_targets <- function(x, mapping) {
+  out <- x
+  for (i in 1:10) {
+    decoded <- gsub(letters[i], substr(mapping, i, i), x)
+  }
+
+  if (decoded == "cf") out[i] <- 1
+  if (decoded == "acf") out[i] <- 7
+  if (decoded == "bcdf") out[i] <- 4
+  if (decoded == "acdeg") out[i] <- 2
+  if (decoded == "acdfg") out[i] <- 3 # oh that's a nice contrast, 2 vs 3
+  if (decoded == "abdfg") out[i] <- 5 # oh that's a nice contrast, 3 vs 5
+  if (decoded == "abcefg") out[i] <- 0
+  if (decoded == "abdefg") out[i] <- 6
+  if (decoded == "abcdfg") out[i] <- 9
+  if (decoded == "abcdefg") out[i] <- 8
+}
+
+sum_decodings <- function(path) {
+  x <- readLines(path)
+  patterns <- rep(NA, length(x))
+  targets <- rep(NA, length(x))
+  for (i in 1:length(x)) {
+    patterns[i] <- strsplit(x[i], " \\| ")[[1]][1]
+    targets[i] <- strsplit(x[i], " \\| ")[[1]][2]
+  }
+  patterns <- strsplit(patterns, split = "\\s")
+  targets <- strsplit(targets, split = "\\s")
+  decoded_target <- vector("list", length(targets))
+  for (i in 1:length(patterns)) {
+    mapping <- decode_pattern(patterns[[i]])
+    targets[[i]] <- decode_target(targets[[i]], mapping)
+  }
+  sum(unlist(lapply(targets, sum)))
+}
+
+# how to decode the first one?
+
+# looking at one by itself, we know the two possible mappings for segments "c" and "f"
+encoded_one <- "be"
+# b -> c and e -> f
+# e -> c and f -> f
+
+# comparing one to seven, you can figure out the mapping to segment 'a' exactly
+# its the one that is new!
+encoded_seven <- "bde"
+# d -> a
+
+# comparing one to four, you can figure out the two possibilities for mapping "b" and "d"
+encoded_four <- "bceg"
+# c -> b or g -> b
+# g -> d or c -> d
+
+# i think we can identify five then, it contains signal for "a", which we know exactly, and the signals for b and d which must both be present, and also f, which we have narrowed down to one of two possibilities
+# by process of elimination, the mapping to g should be known exactly then
+# -> g
 
 
-# 2021-12-08 - Advent of Code Day 8
+
+```
 
 
-# 2021-12-07 - Advent of Code Day 7
+
+
+# 2021-12-07 - Advent of Code Day 7: The Treachery of Whales
+
+https://adventofcode.com/2021/day/7
+
+> consider the following horizontal positions:
+
+16,1,2,0,4,2,7,1,2,14
+
+whatever position they have to move to, the cost is a function of the distance they move.
+
+In part 1, 1 unit of fuel for every unit of movement. In part 2, each unit of movement costs one more unit of fuel than the last one.
+
+sum(1:11)
+
+```r
+
+total_cost <- function(path, value = NULL) {
+  x <- as.numeric(strsplit(readLines(path), ",")[[1]])
+  if (is.null(value)) value <- median(x)
+  abs_dev <- abs(x - value)
+  total_absolute_dev <- sum(abs_dev)
+  print(paste("position", value, "has total fuel cost", total_absolute_dev))
+  return(total_absolute_dev)
+}
+
+total_cost_cumulative <- function(path, value = NULL) {
+  if (length(value) < 2) {
+    x <- as.numeric(strsplit(readLines(path), ",")[[1]])
+    if (is.null(value)) value <- round(mean(x))
+    abs_dev <- abs(x - value)
+    total_cumulative_abs_dev <- sum(abs_dev * (abs_dev + 1) / 2)
+    print(paste("position", value, "has total cumulative fuel cost", total_cumulative_abs_dev))
+    return(total_cumulative_abs_dev)
+  } else {
+    sapply(value, function(z) total_cost_cumulative(path, z))
+  }
+}
+
+total_cost("day7_input_test.txt", 1) == 41
+total_cost("day7_input_test.txt", 3) == 39
+total_cost("day7_input_test.txt", 10) == 71
+total_cost("day7_input_test.txt") == 37
+total_cost("day7_input.txt") == 340987
+
+total_cost_cumulative("day7_input_test.txt") == 168
+# "position 5 has total cumulative fuel cost 168"
+plot(1:16, total_cost_cumulative("day7_input_test.txt", 1:16))
+points(5, 168, pch = 20)
+
+total_cost_cumulative("day7_input.txt") == 96987919
+# "position 479 has total cumulative fuel cost 96987919"
+total_cost_cumulative("day7_input.txt", 478)
+# "position 478 has total cumulative fuel cost 96987874"
+total_cost_cumulative("day7_input.txt", 477)
+# "position 477 has total cumulative fuel cost 96988829"
+
+x <- 450:500
+plot(x, total_cost_cumulative("day7_input.txt", x))
+points(479, 96987919, pch = 20)
+
+# ah hah, so the arithmetic mean is not perfect, but it is *very very close*
+# due to rounding perhaps? or the difference between n^2 and n(n-1)
+# local grid search finds the answer immediately
+
+```
+
+
+
+```r
+# observe the squared deviation is *almost exactly* the same as the crab fuel function
+par(mfrow = c(1, 2))
+n <- 100
+plot((1:n)^2, type = "l")
+points((1:n) * (2:(n + 1)), type = "l", col = "red")
+plot((1:n)^2, (1:n) * (2:(n + 1))); abline(0, 1)
+
+# that would imply that the arithmetic mean, which minimizes the squared deviations, probably also minimizes this cumulative deviation function
+
+```
 
 
 # 2021-12-06 - Advent of Code Day 6: Lanternfish
@@ -18,25 +233,101 @@ We can represent the internal timer as counting the *number of complete days inc
 
 So, the internal timer of one fish and all its offspring over 25 days would look like this:
 
-  3210654321065432106543210 
-     8765432106543210654321
-            876543210654321
+  3210654321065432106543210
+      876543210654321065432
              87654321065432
-                   87654321
+               876543210654
                     8765432
-                    8765432
-                     876543
-                          8
-
+                      87654
+                      87654
+                        876
+                  
 Given an initial population of fish with known timers, we can simulate forwards as new fish appear with their own timers.
 
 How many lanternfish would there be after 80 days? In the training example, there are 5 fish, and after 18 days, there are a total of 26 fish. After 80 days, there would be a total of 5934. In the validation set there are 300 fish.
 
+alternative strategy: given a single fish on a particular day I can calculate the number of descendants mathematically, then times that by the number of fish with that internal clock on that day...then just add over all the days 6 to 0
+
+In part 2, we ask how many will be there in 256 days!
+
 ```r
 
+sim_lanternfish <- function(path, n_days = 80) {
+  init <- as.numeric(strsplit(readLines(path), split = ",")[[1]])
+  n_alive <- length(init)
+  n_doublings <- n_days %/% 7 + 1
+  pop <- rep(8, length.out = n_alive * 2^(n_doublings))
+  # initialize living pop
+  pop[1:n_alive] <- init
+  print(paste("before day 1 there are", n_alive, "lanternfish"))
+  # experience each day
+  for (i in 1:n_days) {
+    pop[1:n_alive] <- pop[1:n_alive] - 1
+    n_alive <- n_alive + sum(pop[1:n_alive] == (-1))
+    pop[pop == (-1)] <- 6
+    if (i %% 10 == 0) print(paste("after day", i, "there are", n_alive, "lanternfish"))
+    if (length(pop) < n_alive) stop("vector is too short!")
+  }
+  print(paste("after day", i, "there are", n_alive, "lanternfish"))
+  return(n_alive)
+}
+
+sim_lanternfish_v2 <- function(path, n_days = 80) {
+  # initialize counter vector
+  n <- rep(0, 9) # number in state 0 is n[0 + 1], in state 8 is n[8 + 1]
+  # load initial population
+  init <- as.numeric(strsplit(readLines(path), split = ",")[[1]])
+  for (i in (0:8 + 1)) {
+    n[i] <- sum(init == (i - 1))
+  }
+  print(paste("before day 1 there are", sum(n), "lanternfish"))
+  # experience each day
+  for (i in 1:n_days) {
+    n[7 + 1] <- n[7 + 1] + n[0 + 1] # parents switch from state 0 to state 7
+    n <- c(n[1:8 + 1], n[0 + 1]) # all decrease 1 state; n[0 + 1] new offspring appear in state 8
+    if (i %% 10 == 0) print(paste("after day", i, "there are", sum(n), "lanternfish"))
+  }
+  print(paste("after day", i, "there are", sum(n), "lanternfish"))
+  return(sum(n))
+}
+
+options(scipen = 999)
+
+sim_lanternfish("day6_input_test.txt", n_days = 18) == 26
+sim_lanternfish("day6_input_test.txt") == 5934
+sim_lanternfish("day6_input.txt") == 385391
+
+# in part 2, we run for 256 days
+# but it is too big, we cant even run the test version
+# gotta go simpler...
+
+# the key is to realize that it's a *stage model* - simply advance each individual thru each stage and voila
+sim_lanternfish_v2("day6_input_test.txt", n_days = 18) == 26
+sim_lanternfish_v2("day6_input_test.txt") == 5934
+sim_lanternfish_v2("day6_input.txt") == 385391
+
+# in part 2, we run for 256 days
+sim_lanternfish_v2("day6_input_test.txt", n_days = 256) == 26984457539
+sim_lanternfish_v2("day6_input.txt", n_days = 256) == 1728611055389
 
 
 ```
+
+now lets show off
+
+```r
+
+n <- rep(0, 9)
+init <- as.numeric(strsplit(readLines("day6_input.txt"), split = ",")[[1]])
+for (i in 1:9) n[i] <- sum(init == (i - 1))
+for (i in 1:256) {
+  n[8] <- n[8] + n[1] # parents switch from state 0 to state 7
+  n <- c(n[2:9], n[1]) # all decrease 1 state; offspring to state 8
+}
+sum(n) # 0.043 seconds
+
+```
+
 
 
 
