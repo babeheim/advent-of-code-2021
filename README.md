@@ -1,8 +1,16 @@
 
+# Links
+
 https://adventofcode.com/
 https://carbon.now.sh/ to show off code
 
-# 2021-12-08 - Advent of Code Day 8: Seven Segment Search
+## Other Solvers
+
+- using [{R6} objects](https://github.com/karawoo/adventofcode2021/blob/main/R/day02.R#L98-L150)
+- [Hvitfeldt's solution](https://emilhvitfeldt.github.io/rstats-adventofcode/2021.html?panelset=day-2)
+
+
+# Day 8: Seven Segment Search
 
 https://adventofcode.com/2021/day/8
 
@@ -142,7 +150,7 @@ encoded_four <- "bceg"
 
 
 
-# 2021-12-07 - Advent of Code Day 7: The Treachery of Whales
+# Day 7: The Treachery of Whales
 
 https://adventofcode.com/2021/day/7
 
@@ -208,8 +216,6 @@ points(479, 96987919, pch = 20)
 
 ```
 
-
-
 ```r
 # observe the squared deviation is *almost exactly* the same as the crab fuel function
 par(mfrow = c(1, 2))
@@ -223,7 +229,7 @@ plot((1:n)^2, (1:n) * (2:(n + 1))); abline(0, 1)
 ```
 
 
-# 2021-12-06 - Advent of Code Day 6: Lanternfish
+# Day 6: Lanternfish
 
 https://adventofcode.com/2021/day/6
 
@@ -330,11 +336,9 @@ sum(n) # 0.043 seconds
 
 
 
+# Day 5: Hydrothermal Venture
 
-
-# 2021-12-05 - Advent of Code Day 5: Hydrothermal Venture
-
-> We have the start and stop coordinates for lines of hydrothermal vents in discrete x-y space, in the format of
+We have the start- and stop-coordinates for lines of hydrothermal vents in discrete x-y space, in the format of
 
 ```
 0,9 -> 5,9
@@ -349,7 +353,7 @@ sum(n) # 0.043 seconds
 5,5 -> 8,2
 ```
 
-> Our task is to count up the number of cells in which 2 or more such lines intersect as a sum. In the first part we consider only horizonal and vertical lines. In the second part, we consider diagonal lines as well.
+Our task is to count up the number of cells in which 2 or more such lines intersect as a sum. In Part One, we consider only horizonal and vertical lines. In Part Two, we consider diagonal lines as well.
 
 ```r
 
@@ -423,13 +427,9 @@ map_danger(dat$start, dat$stop, include_diag = TRUE) == 20898
 
 
 
-# 2021-12-04 - Advent of Code Day 4: Giant Squid
+# Day 4: Bingo with a Giant Squid
 
-> For a given set of 5x5 matricies (bingo boards), find the board that will have the first "bingo" as you proceed through a sequence of bingo draws. The "score" for that board is the set of un-marked values times the final drawn value that produced the "bingo".
-
-> --- Part Two ---
-
-> Now we have to find the bingo board that wins *last*, and score that one.
+For a given set of 5x5 bingo boards, find the board that will have the first "bingo" as you proceed through a given sequence of bingo draws. Also find the board that will have the *last* bingo through these draws, a guaranteed loser.
 
 ```r
 
@@ -507,21 +507,9 @@ score_board(dat$board_array[,,92], dat$draws[1:83]) == 30070
 
 
 
-# 2021-12-03 - Advent of Code Day 3: Binary Diagnostic
+# Day 3: Binary Diagnostics
 
-> For a given set of input binary numbers, find two new binary numbers, the gamma rate and the epsilon rate.
-> Each bit in the gamma rate is the most common bit in the corresponding position of all input numbers.
-> Each bit in the epsilon rate is the least common bit in the corresponding position of all input numbers.
-> The product of the gamma rate and epsilon rate is the power consumption.
-
-> --- Part Two ---
-
-> life support ratin = oxygen generator rating * co2 scrubber rating
-
-> for the oxygen generator rating, find the most common bit in that position, discard numers that do not have it; if 0 and 1 equally common, favor 1
-> for the co2 scrrubber rating, find the least common bit in each position, discarding numbrs that do not have it; if 0 or 1 equally common, favo 0
-
-> keep doing this bit by bit, starting at the left and going right, until one number is left
+Here we work with a list of binary numbers, all the same length. In Part One, we calculate two new numbers, `gamma` and `epsilon`. Each bit in `gamma` is the most-common bit in the corresponding position of the list. Each bit in `epsilon` is the least-common bit. For a given list, the product of gamma and epsilon is our target. In Part Two, we must find the unique number in the list (the "oxygen consumption score") that contains the most-common bit in the first position, in the second position, and so forth, and find the unique number in the list (the "CO2 scrubber score") that contains the least-common bit in the first position, in the second position, and so forth. Our target in Part Two is again the product of these two numbers.
 
 ```r
 
@@ -583,16 +571,9 @@ calc_oxygen_co2("day3_input.txt") == 4432698
 
 
 
+# Day 2: Dive!
 
-# 2021-12-02 - Advent of Code Day 2: Dive!
-
-> It seems like the submarine can take a series of commands like `forward 1`, `down 2`, or `up 3`:
-
-> `forward X` increases the horizontal position by X units.
-> `down X` increases the depth by X units.
-> `up X` decreases the depth by X units.
-
-> Calculate the horizontal position and depth you would have after following the planned course. What do you get if you multiply your final horizontal position by your final depth?
+We calculate our horizonal and vertical position after applying a list of text commands. In Part One, the command `forward 8` just means add 8 to our horizonal displacement, `up 8` means a decrease in depth by 8, and `down 2` an increase in depth of 2. In Part Two, we modify this interpretation: now `up 8` means decrease a quantity called *aim* by 8, and `down 2` means increase aim by 2. When we apply a `forward` command, we increase our horizonal displacement by the number given, and change our vertical displacement by the horizonal change times the aim.
 
 ```r
 
@@ -617,26 +598,6 @@ text_to_vectors <- function(path) {
   positions[2:nrow(positions), 2] <- cumsum(deltas[, 2])
   return(positions)
 }
-
-vectors <- text_to_vectors("day2_input_test.txt")
-prod(vectors[nrow(vectors),]) == 150 # should be 150
-
-vectors <- text_to_vectors("day2_input.txt")
-prod(vectors[nrow(vectors),]) # 1762050
-plot(vectors, type = "l", ylim = c(max(vectors[,2]), 0), ylab = "depth", xlab = "x displacement")
-
-```
-
-> --- Part Two ---
-
-> In addition to horizontal position and depth, you'll also need to track a third value, aim, which also starts at 0. The commands also mean something entirely different than you first thought:
-
-> `down X` increases your aim by X units.
-> `up X` decreases your aim by X units.
-> `forward X` does two things: It increases your horizontal position by X units and it increases your depth by your aim multiplied by X.
-
-
-```r
 
 text_to_vectors_with_aim <- function(path) {
   x <- readLines(path)
@@ -664,12 +625,22 @@ text_to_vectors_with_aim <- function(path) {
   return(positions)
 }
 
+# --- Part One ---
+vectors <- text_to_vectors("day2_input_test.txt")
+prod(vectors[nrow(vectors),]) == 150 # should be 150
+
+vectors <- text_to_vectors("day2_input.txt")
+prod(vectors[nrow(vectors),]) # 1762050
+plot(vectors, type = "l", ylim = c(max(vectors[,2]), 0), ylab = "depth", xlab = "x displacement")
+
+# --- Part Two ---
 vectors <- text_to_vectors_with_aim("day2_input_test.txt")
 prod(vectors[nrow(vectors),1:2]) == 900 # should be 900
 
 vectors <- text_to_vectors_with_aim("day2_input.txt")
 prod(vectors[nrow(vectors),1:2]) # 1855892637
 
+# plot to compare
 par(mfrow = c(1, 2))
 vectors_bad <- text_to_vectors("day2_input.txt")
 plot(vectors_bad, type = "l", ylim = c(max(vectors_bad[,2]), 0), ylab = "depth", xlab = "x displacement", col = "red", las = 1)
@@ -679,31 +650,12 @@ points(vectors_bad, type = "l", col = "red")
 
 ```
 
-## Other Solutions
-
-- using [{R6} objects](https://github.com/karawoo/adventofcode2021/blob/main/R/day02.R#L98-L150)
-- [Hvitfeldt's solution](https://emilhvitfeldt.github.io/rstats-adventofcode/2021.html?panelset=day-2)
 
 
 
-# 2021-12-01 - Advent of Code Day 1: Sonar Sweep
+# Day 1: Sonar Sweep
 
-> How many measurements are larger than the previous measurement?
-
-> Start by comparing the first and second three-measurement windows. The measurements in the first window are marked A (199, 200, 208); their sum is 199 + 200 + 208 = 607. The second window is marked B (200, 208, 210); its sum is 618. The sum of measurements in the second window is larger than the sum of the first, so this first comparison increased.
-
-199  A      
-200  A B    
-208  A B C  
-210    B C D
-200  E   C D
-207  E F   D
-240  E F G  
-269    F G H
-260      G H
-263        H
-
-> Your goal now is to count the number of times the sum of measurements in this sliding window increases from the previous sum. So, compare A with B, then compare B with C, then C with D, and so on. Stop when there aren't enough measurements left to create a new three-measurement sum.
+For a list of measurements, how many are larger than the previous measurement in the list? For Part One, we are given the list of measurements. For Part Two, we construct the list from a longer list, as the rolling sum of every group of three measures.
 
 ```r
 
@@ -724,7 +676,7 @@ read_sum_diff("day1_input_test.txt") == 7
 read_sum_diff("day1_input.txt") == 1316
 
 # part 2
-read_sum_diff_three("day1_input_test.txt") == 5 # supposed to be 5
+read_sum_diff_three("day1_input_test.txt") == 5
 read_sum_diff_three("day1_input.txt") == 1344
 
 ```
