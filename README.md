@@ -10,7 +10,6 @@ https://carbon.now.sh/ to show off code
 - [Hvitfeldt's solution](https://emilhvitfeldt.github.io/rstats-adventofcode/2021.html?panelset=day-2)
 
 
-
 # Day 8: Seven Segment Search
 
 https://adventofcode.com/2021/day/8
