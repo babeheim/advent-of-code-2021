@@ -149,10 +149,7 @@ encoded_four <- "bceg"
 # by process of elimination, the mapping to g should be known exactly then
 # -> g
 
-
-
 ```
-
 
 
 
@@ -160,15 +157,9 @@ encoded_four <- "bceg"
 
 https://adventofcode.com/2021/day/7
 
-> consider the following horizontal positions:
+In Part One, we want to find the (integer) value which minimizes the total absolute deviation of a list of integers representing fuel costs. In Part Two, we want to find the value to minimize the total *cumulative* absolute deviation (e.g. for a list entry 10 and a candidate value 5, there is an absolute deviation of 5 and a cumulative deviation of 1 + 2 + 3 + 4 + 5 = 15).
 
-16,1,2,0,4,2,7,1,2,14
-
-whatever position they have to move to, the cost is a function of the distance they move.
-
-In part 1, 1 unit of fuel for every unit of movement. In part 2, each unit of movement costs one more unit of fuel than the last one.
-
-sum(1:11)
+The value that minimizes total absolute deviation is just the [median](https://en.wikipedia.org/wiki/Median). The cumulative deviation of $n$ is given by $n(n + 1)/2$ and so is directly proportional to the squared deviation $n^2$, which is minimized by the [arithmetic mean](https://en.wikipedia.org/wiki/Arithmetic_mean). Because this isn't quite perfect, and because we must produce integers, the output has to check the local area around the true mean.
 
 ```r
 
@@ -216,21 +207,7 @@ x <- 450:500
 plot(x, total_cost_cumulative("day7_input.txt", x))
 points(479, 96987919, pch = 20)
 
-# ah hah, so the arithmetic mean is not perfect, but it is *very very close*
-# due to rounding perhaps? or the difference between n^2 and n(n-1)
-# local grid search finds the answer immediately
-
-```
-
-```r
-# observe the squared deviation is *almost exactly* the same as the crab fuel function
-par(mfrow = c(1, 2))
-n <- 100
-plot((1:n)^2, type = "l")
-points((1:n) * (2:(n + 1)), type = "l", col = "red")
-plot((1:n)^2, (1:n) * (2:(n + 1))); abline(0, 1)
-
-# that would imply that the arithmetic mean, which minimizes the squared deviations, probably also minimizes this cumulative deviation function
+# local grid search finds the answer
 
 ```
 
