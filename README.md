@@ -87,39 +87,45 @@ count_simple_numbers("day8_input_test.txt") == 26
 count_simple_numbers("day8_input.txt") == 412
 
 decode_targets <- function(x, mapping) {
-  out <- x
-  for (i in 1:10) {
-    decoded <- gsub(letters[i], substr(mapping, i, i), x)
+  if (length(x) == 1) {
+    encoded <- strsplit(x, split = "")[[1]]
+    decoded <- paste(letters[match(encoded, mapping)], collapse = "")
+    out <- rep(NA, nchar(decoded))
+    for (i in 1:length(out)) {
+      if (decoded[i] == "cf") out[i] <- 1
+      if (decoded[i] == "acf") out[i] <- 7
+      if (decoded[i] == "bcdf") out[i] <- 4
+      if (decoded[i] == "acdeg") out[i] <- 2
+      if (decoded[i] == "acdfg") out[i] <- 3 # oh that's a nice contrast, 2 vs 3
+      if (decoded[i] == "abdfg") out[i] <- 5 # oh that's a nice contrast, 3 vs 5
+      if (decoded[i] == "abcefg") out[i] <- 0
+      if (decoded[i] == "abdefg") out[i] <- 6
+      if (decoded[i] == "abcdfg") out[i] <- 9
+      if (decoded[i] == "abcdefg") out[i] <- 8
+    }
   }
-
-  if (decoded == "cf") out[i] <- 1
-  if (decoded == "acf") out[i] <- 7
-  if (decoded == "bcdf") out[i] <- 4
-  if (decoded == "acdeg") out[i] <- 2
-  if (decoded == "acdfg") out[i] <- 3 # oh that's a nice contrast, 2 vs 3
-  if (decoded == "abdfg") out[i] <- 5 # oh that's a nice contrast, 3 vs 5
-  if (decoded == "abcefg") out[i] <- 0
-  if (decoded == "abdefg") out[i] <- 6
-  if (decoded == "abcdfg") out[i] <- 9
-  if (decoded == "abcdefg") out[i] <- 8
+  if (length(x) > 1) {
+    out <- sapply(x, decode_targets)
+  }
+  return(out)
 }
 
 sum_decodings <- function(path) {
   x <- readLines(path)
   patterns <- rep(NA, length(x))
-  targets <- rep(NA, length(x))
+  encoded_targets <- rep(NA, length(x))
   for (i in 1:length(x)) {
     patterns[i] <- strsplit(x[i], " \\| ")[[1]][1]
-    targets[i] <- strsplit(x[i], " \\| ")[[1]][2]
+    encoded_targets[i] <- strsplit(x[i], " \\| ")[[1]][2]
   }
   patterns <- strsplit(patterns, split = "\\s")
-  targets <- strsplit(targets, split = "\\s")
-  decoded_target <- vector("list", length(targets))
+  encoded_targets <- strsplit(encoded_targets, split = "\\s")
+  decoded_targets <- vector("list", length(encoded_targets))
   for (i in 1:length(patterns)) {
-    mapping <- decode_pattern(patterns[[i]])
-    targets[[i]] <- decode_target(targets[[i]], mapping)
+    mapping <- decode_pattern(patterns[[i]]) # the hard part
+    decoded_targets[[i]] <- decode_target(encoded_targets[[i]], mapping)
   }
-  sum(unlist(lapply(targets, sum)))
+  sum(unlist(lapply(decoded_targets, sum)))
 }
 
 # how to decode the first one?
@@ -233,32 +239,12 @@ plot((1:n)^2, (1:n) * (2:(n + 1))); abline(0, 1)
 
 https://adventofcode.com/2021/day/6
 
-Exponentially-growing lanternfish, doubles every 7 days. each fish is summarizes by an internal timer representing *number of days until it creates a new lanternfish*. When a fish first appears it needs 2 days to then start the 7-day doubling cycle.
-
-We can represent the internal timer as counting the *number of complete days including today* until the day a doubling occurs. On the days doublings occur, this is zero. The day after a doubling, it starts at 6 because there are 6 days between doubling-days for the full 7-day cycle.
-
-So, the internal timer of one fish and all its offspring over 25 days would look like this:
-
-  3210654321065432106543210
-      876543210654321065432
-             87654321065432
-               876543210654
-                    8765432
-                      87654
-                      87654
-                        876
-                  
-Given an initial population of fish with known timers, we can simulate forwards as new fish appear with their own timers.
-
-How many lanternfish would there be after 80 days? In the training example, there are 5 fish, and after 18 days, there are a total of 26 fish. After 80 days, there would be a total of 5934. In the validation set there are 300 fish.
-
-alternative strategy: given a single fish on a particular day I can calculate the number of descendants mathematically, then times that by the number of fish with that internal clock on that day...then just add over all the days 6 to 0
-
-In part 2, we ask how many will be there in 256 days!
+Here we model a population of exponentially-growing, immortal lanternfish. Each mature fish can be categorized in one of seven states, representing the number of days remaining until reproduction, from 6 to 0. At the end of day 0, the fish reproduces, and begins the next day in state 6 again along with its offspring. Offspring fish take two days to mature and begin the reproductive cycle in state 6, so we could call those immature states 8 and 7. Given an initial population of fish with known states, we want to project the population size forward using these unconstrained growth rules.
 
 ```r
 
-sim_lanternfish <- function(path, n_days = 80) {
+# first approach, 'agent based', representing the state of each individual fish in a vector
+sim_lanternfish_abm <- function(path, n_days = 80) {
   init <- as.numeric(strsplit(readLines(path), split = ",")[[1]])
   n_alive <- length(init)
   n_doublings <- n_days %/% 7 + 1
@@ -278,6 +264,7 @@ sim_lanternfish <- function(path, n_days = 80) {
   return(n_alive)
 }
 
+# second approach, using a vector of nine state bins
 sim_lanternfish_v2 <- function(path, n_days = 80) {
   # initialize counter vector
   n <- rep(0, 9) # number in state 0 is n[0 + 1], in state 8 is n[8 + 1]
@@ -299,38 +286,111 @@ sim_lanternfish_v2 <- function(path, n_days = 80) {
 
 options(scipen = 999)
 
-sim_lanternfish("day6_input_test.txt", n_days = 18) == 26
-sim_lanternfish("day6_input_test.txt") == 5934
-sim_lanternfish("day6_input.txt") == 385391
-
-# in part 2, we run for 256 days
-# but it is too big, we cant even run the test version
-# gotta go simpler...
-
-# the key is to realize that it's a *stage model* - simply advance each individual thru each stage and voila
+sim_lanternfish_abm("day6_input_test.txt", n_days = 18) == 26
 sim_lanternfish_v2("day6_input_test.txt", n_days = 18) == 26
+
+sim_lanternfish_abm("day6_input_test.txt") == 5934
 sim_lanternfish_v2("day6_input_test.txt") == 5934
+
+# in part 1, we run for 80 days
+sim_lanternfish_abm("day6_input.txt") == 385391
 sim_lanternfish_v2("day6_input.txt") == 385391
 
 # in part 2, we run for 256 days
+# sim_lanternfish_abm("day6_input.txt", 256) won't even run, too big
+# sim_lanternfish_abm("day6_input_test.txt", 256) won't even run, too big
 sim_lanternfish_v2("day6_input_test.txt", n_days = 256) == 26984457539
 sim_lanternfish_v2("day6_input.txt", n_days = 256) == 1728611055389
 
-
 ```
 
-now lets show off
+Now let's try with Leslie matricies:
 
 ```r
 
+# matrix multiplication approach
+sim_lanternfish_v3 <- function(path, n_days = 80) {
+  # initialize counter vector
+  n <- rep(0, 9) # number in state 0 is n[0 + 1], in state 8 is n[8 + 1]
+  # initialize Leslie matrix
+  A <- matrix(
+    c(
+      0,0,0,0,0,0,0,0,1,
+      1,0,0,0,0,0,0,0,0,
+      0,1,0,0,0,0,0,0,1,
+      0,0,1,0,0,0,0,0,0,
+      0,0,0,1,0,0,0,0,0,
+      0,0,0,0,1,0,0,0,0,
+      0,0,0,0,0,1,0,0,0,
+      0,0,0,0,0,0,1,0,0,
+      0,0,0,0,0,0,0,1,0
+    ), byrow = TRUE, ncol = 9
+  )
+  # load initial population
+  init <- as.numeric(strsplit(readLines(path), split = ",")[[1]])
+  for (i in (0:8 + 1)) n[i] <- sum(init == 9 - i)
+  print(paste("before day 1 there are", sum(n), "lanternfish"))
+  # experience each day
+  for (i in 1:n_days) {
+    n <- A %*% n
+    if (i %% 10 == 0) print(paste("after day", i, "there are", sum(n), "lanternfish"))
+  }
+  print(paste("after day", i, "there are", sum(n), "lanternfish"))
+  return(sum(n))
+}
+
+matrix.power <- function(A, n) {   # only works for diagonalizable matrices
+   e <- eigen(A)
+   M <- e$vectors   # matrix for changing basis
+   d <- e$values    # eigen values
+   return(M %*% diag(d^n) %*% solve(M))
+}
+
+# eigen-decomposition approach
+sim_lanternfish_v4 <- function(path, n_days = 80) {
+  # initialize counter vector
+  n <- rep(0, 9) # number in state 0 is n[0 + 1], in state 8 is n[8 + 1]
+  # initialize Leslie matrix
+  A <- matrix(c(0,0,0,0,0,0,0,0,1,1,0,0,0,0,0,0,0,0,0,1,0,0,0,0,0,0,1,0,0,1,0,0,0,0,0,0,0,0,0,1,0,0,0,0,0,0,0,0,0,1,0,0,0,0,0,0,0,0,0,1,0,0,0,0,0,0,0,0,0,1,0,0,0,0,0,0,0,0,0,1,0), byrow = TRUE, ncol = 9)
+  # load initial population
+  init <- as.numeric(strsplit(readLines(path), split = ",")[[1]])
+  for (i in (0:8 + 1)) n[i] <- sum(init == 9 - i)
+  print(paste("before day 1 there are", sum(n), "lanternfish"))
+  # use decomposition
+  n <- round(as.numeric(matrix.power(A, n_days) %*% n))
+  if (i %% 10 == 0) print(paste("after day", i, "there are", sum(n), "lanternfish"))
+  print(paste("after day", i, "there are", sum(n), "lanternfish"))
+  return(sum(n))
+}
+
+sim_lanternfish_v3("day6_input_test.txt", n_days = 18) == 26
+sim_lanternfish_v3("day6_input_test.txt") == 5934
+sim_lanternfish_v3("day6_input.txt") == 385391
+sim_lanternfish_v3("day6_input_test.txt", n_days = 256) == 26984457539
+sim_lanternfish_v3("day6_input.txt", n_days = 256) == 1728611055389
+
+sim_lanternfish_v4("day6_input_test.txt", n_days = 18) == 26
+sim_lanternfish_v4("day6_input_test.txt") == 5934
+sim_lanternfish_v4("day6_input.txt") == 385391
+sim_lanternfish_v4("day6_input_test.txt", n_days = 256) == 26984457539
+sim_lanternfish_v4("day6_input.txt", n_days = 256) == 1728611055389
+
+```
+
+time out the essential code
+
+```r
+
+tic()
 n <- rep(0, 9)
 init <- as.numeric(strsplit(readLines("day6_input.txt"), split = ",")[[1]])
 for (i in 1:9) n[i] <- sum(init == (i - 1))
-for (i in 1:256) {
+for (i in 1:18) {
   n[8] <- n[8] + n[1] # parents switch from state 0 to state 7
   n <- c(n[2:9], n[1]) # all decrease 1 state; offspring to state 8
 }
 sum(n) # 0.043 seconds
+toc()
 
 ```
 
