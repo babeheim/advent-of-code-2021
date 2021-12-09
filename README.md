@@ -123,6 +123,7 @@ calc_basin_score("day9_input.txt") == 1103130
 
 ```
 
+![](day9_basins.png)
 
 
 # Day 8: Seven Segment Search
