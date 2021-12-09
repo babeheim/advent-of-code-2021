@@ -6,8 +6,123 @@ https://carbon.now.sh/ to show off code
 
 ## Other Solvers
 
-- using [{R6} objects](https://github.com/karawoo/adventofcode2021/blob/main/R/day02.R#L98-L150)
-- [Hvitfeldt's solution](https://emilhvitfeldt.github.io/rstats-adventofcode/2021.html?panelset=day-2)
+- Day 2 using [{R6} objects](https://github.com/karawoo/adventofcode2021/blob/main/R/day02.R#L98-L150)
+- [Hvitfeldt's solutions](https://emilhvitfeldt.github.io/rstats-adventofcode/2021.html)
+- Day 9 [also using igraph](https://twitter.com/rappa753/status/1468876602016735233)
+
+
+
+# Day 9: Smoke Basins
+
+https://adventofcode.com/2021/day/9
+
+Given a 2-dimensional matrix of digits, in Part One we are asked to find the local minimums, considering up-down and left-right differences only. In Part Two, we have to measure the size of the *basins* around each minimum, including all values except the 9s which represent the borders between basins, and multiply the sizes of the three largest basins. One strategy here is to connect neighboring cells in an adjacency matrix and use the `igraph` network package to identify connected groups.
+
+```r
+
+library(igraph)
+
+is_matrix_min <- function(x) {
+  # calculate discrete gradients to find the minimum
+  grad_right <- cbind((x[,2:ncol(x)] - x[,1:(ncol(x) - 1)]), rep(99, nrow(x)))
+  grad_left <- cbind(rep(99, nrow(x)), (x[,1:(ncol(x) - 1)] - x[,2:ncol(x)]))
+  is_local_min_x  <- grad_right > 0 & grad_left > 0
+  grad_down <- rbind((x[2:nrow(x),] - x[1:(nrow(x) - 1),]), rep(99, ncol(x)))
+  grad_up <- rbind(rep(99, ncol(x)), (x[1:(nrow(x) - 1),] - x[2:nrow(x),]))
+  is_local_min_y  <- grad_down > 0 & grad_up > 0
+  is_local_min <- is_local_min_x & is_local_min_y
+  return(is_local_min)
+}
+
+calc_risk_level <- function(path) {
+  raw <- readLines(path)
+  x <- matrix(NA, ncol = nchar(raw[1]), nrow = length(raw))
+  for (i in 1:nrow(x)) x[i,] <- as.numeric(strsplit(raw[i], split = "")[[1]])
+  risk_levels <- x[which(is_matrix_min(x))] + 1
+  sum(risk_levels)
+}
+
+calc_basin_score <- function(path) {
+  raw <- readLines(path)
+  x <- matrix(NA, ncol = nchar(raw[1]), nrow = length(raw))
+  for (i in 1:nrow(x)) x[i,] <- as.numeric(strsplit(raw[i], split = "")[[1]])
+  basin_matrix <- map_basins(x)
+  out <- prod(rev(sort(table(basin_matrix)))[1:3])
+  return(out)
+}
+
+map_basins <- function(x) {
+  # find the basins in the elevation matrix
+  adj <- matrix(FALSE, nrow = length(x), ncol = length(x))
+  diag(adj) <- TRUE
+  for (k in 1:ncol(x)) {
+    for (j in 1:nrow(x)) {
+      # ignore the ridgelines
+      if (x[j, k] != 9) {
+        # calculate my linear address
+        my_lad <- nrow(x) * (k - 1) + j
+        stopifnot(x[my_lad] == x[j, k])
+        # not at top border?
+        if ((j - 1) >= 1) {
+          # northern neighbor in your basin?
+          if (x[j - 1, k] != 9) {
+            neighbor_lad <- nrow(x) * (k - 1) + (j - 1)
+            stopifnot(x[neighbor_lad] == x[j-1, k])
+            adj[my_lad, neighbor_lad] <- TRUE
+            adj[neighbor_lad, my_lad] <- TRUE
+          }
+        }
+        # not at bottom border?
+        if ((j + 1) <= nrow(x)) {
+          # southern neighbor in your basin?
+          if (x[j + 1, k] != 9) {
+            neighbor_lad <- nrow(x) * (k - 1) + (j + 1)
+            stopifnot(x[neighbor_lad] == x[j + 1, k])
+            adj[my_lad, neighbor_lad] <- TRUE
+            adj[neighbor_lad, my_lad] <- TRUE
+          }
+        }
+        # not at left border?
+        if ((k - 1) >= 1) {
+          # western neighbor in your basin?
+          if (x[j, k - 1] != 9) {
+            neighbor_lad <- nrow(x) * ((k - 1) - 1) + j
+            stopifnot(x[neighbor_lad] == x[j, k - 1])
+            adj[my_lad, neighbor_lad] <- TRUE
+            adj[neighbor_lad, my_lad] <- TRUE
+          }
+        }
+        # not at right border?
+        if ((k + 1) <= ncol(x)) {
+          # eastern neighbor in your basin?
+          if (x[j, k + 1] != 9) {
+            neighbor_lad <- nrow(x) * ((k + 1) - 1) + j
+            stopifnot(x[neighbor_lad] == x[j, k + 1])
+            adj[my_lad, neighbor_lad] <- TRUE
+            adj[neighbor_lad, my_lad] <- TRUE
+          }
+        }
+      }
+    }
+  }
+  basin_network <- graph_from_adjacency_matrix(adj)
+  basins <- components(basin_network)
+  basin_id <- basins$membership
+  basin_id[basin_id %in% which(basins$csize == 1)] <- NA
+  basin_matrix <- matrix(basin_id, nrow = nrow(x), ncol = ncol(x))
+  return(basin_matrix)
+}
+
+# for part one
+calc_risk_level("day9_input_test.txt") == 15
+calc_risk_level("day9_input.txt") == 514
+
+# for part two
+calc_basin_score("day9_input_test.txt") == 1134
+calc_basin_score("day9_input.txt") == 1103130
+
+```
+
 
 
 # Day 8: Seven Segment Search
@@ -36,6 +151,7 @@ b    .  b    .  .    c  b    c  b    c
  gggg    gggg    ....    gggg    gggg
 
 ```
+
 
 We are given ciphers in the following format:
 
