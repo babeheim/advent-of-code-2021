@@ -9,6 +9,7 @@ https://carbon.now.sh/ to show off code
 - Day 2 using [{R6} objects](https://github.com/karawoo/adventofcode2021/blob/main/R/day02.R#L98-L150)
 - [Hvitfeldt's solutions](https://emilhvitfeldt.github.io/rstats-adventofcode/2021.html)
 - Day 9 [also using igraph](https://twitter.com/rappa753/status/1468876602016735233)
+- [Antoine Fabri's page](https://github.com/moodymudskipper/adventofcode2021)
 
 
 
@@ -16,11 +17,9 @@ https://carbon.now.sh/ to show off code
 
 https://adventofcode.com/2021/day/9
 
-Given a 2-dimensional matrix of digits, in Part One we are asked to find the local minimums, considering up-down and left-right differences only. In Part Two, we have to measure the size of the *basins* around each minimum, including all values except the 9s which represent the borders between basins, and multiply the sizes of the three largest basins. One strategy here is to connect neighboring cells in an adjacency matrix and use the `igraph` network package to identify connected groups.
+Given a 2-dimensional matrix of digits, in Part One we are asked to find the local minimums, considering up-down and left-right differences only. In Part Two, we have to measure the size of the *basins* around each minimum, including all values except the 9s which represent the borders between basins, and multiply the sizes of the three largest basins. Initially I did an adjacency matrix approach using the {igraph} package, which works, but the simpler solution is just a `while` loop.
 
 ```r
-
-library(igraph)
 
 is_matrix_min <- function(x) {
   # calculate discrete gradients to find the minimum
@@ -32,6 +31,40 @@ is_matrix_min <- function(x) {
   is_local_min_y  <- grad_down > 0 & grad_up > 0
   is_local_min <- is_local_min_x & is_local_min_y
   return(is_local_min)
+}
+
+copy_neighbor <- function(them, me) {
+  if (is.na(me)) {
+    if (!is.na(them) & them > 0) {
+      out <- them
+    } else {
+      out <- me
+    }
+  } else {
+    out <- me
+  }
+  return(out)
+}
+
+map_basins <- function(x) {
+  # much simpler method using a while loop
+  bsn <- matrix(NA, nrow = nrow(x), ncol = ncol(x))
+  bsn[which(is_matrix_min(x))] <- 1:sum(is_matrix_min(x))
+  bsn[which(x == 9)] <- 0 # all borders are group 0 (for now)
+  while (any(is.na(bsn))) {
+    for (k in 1:ncol(bsn)) {
+      for (j in 1:nrow(bsn)) {
+        if (is.na(bsn[j, k])) {
+          if (j > 1)         bsn[j, k] <- copy_neighbor(bsn[j - 1, k], bsn[j, k])
+          if (j < nrow(bsn)) bsn[j, k] <- copy_neighbor(bsn[j + 1, k], bsn[j, k])
+          if (k > 1)         bsn[j, k] <- copy_neighbor(bsn[j, k - 1], bsn[j, k])
+          if (k < ncol(bsn)) bsn[j, k] <- copy_neighbor(bsn[j, k + 1], bsn[j, k])
+        }
+      }
+    }
+  }
+  bsn[bsn == 0] <- NA # set all borders to NA
+  return(bsn)
 }
 
 calc_risk_level <- function(path) {
@@ -49,68 +82,6 @@ calc_basin_score <- function(path) {
   basin_matrix <- map_basins(x)
   out <- prod(rev(sort(table(basin_matrix)))[1:3])
   return(out)
-}
-
-map_basins <- function(x) {
-  # find the basins in the elevation matrix
-  adj <- matrix(FALSE, nrow = length(x), ncol = length(x))
-  diag(adj) <- TRUE
-  for (k in 1:ncol(x)) {
-    for (j in 1:nrow(x)) {
-      # ignore the ridgelines
-      if (x[j, k] != 9) {
-        # calculate my linear address
-        my_lad <- nrow(x) * (k - 1) + j
-        stopifnot(x[my_lad] == x[j, k])
-        # not at top border?
-        if ((j - 1) >= 1) {
-          # northern neighbor in your basin?
-          if (x[j - 1, k] != 9) {
-            neighbor_lad <- nrow(x) * (k - 1) + (j - 1)
-            stopifnot(x[neighbor_lad] == x[j-1, k])
-            adj[my_lad, neighbor_lad] <- TRUE
-            adj[neighbor_lad, my_lad] <- TRUE
-          }
-        }
-        # not at bottom border?
-        if ((j + 1) <= nrow(x)) {
-          # southern neighbor in your basin?
-          if (x[j + 1, k] != 9) {
-            neighbor_lad <- nrow(x) * (k - 1) + (j + 1)
-            stopifnot(x[neighbor_lad] == x[j + 1, k])
-            adj[my_lad, neighbor_lad] <- TRUE
-            adj[neighbor_lad, my_lad] <- TRUE
-          }
-        }
-        # not at left border?
-        if ((k - 1) >= 1) {
-          # western neighbor in your basin?
-          if (x[j, k - 1] != 9) {
-            neighbor_lad <- nrow(x) * ((k - 1) - 1) + j
-            stopifnot(x[neighbor_lad] == x[j, k - 1])
-            adj[my_lad, neighbor_lad] <- TRUE
-            adj[neighbor_lad, my_lad] <- TRUE
-          }
-        }
-        # not at right border?
-        if ((k + 1) <= ncol(x)) {
-          # eastern neighbor in your basin?
-          if (x[j, k + 1] != 9) {
-            neighbor_lad <- nrow(x) * ((k + 1) - 1) + j
-            stopifnot(x[neighbor_lad] == x[j, k + 1])
-            adj[my_lad, neighbor_lad] <- TRUE
-            adj[neighbor_lad, my_lad] <- TRUE
-          }
-        }
-      }
-    }
-  }
-  basin_network <- graph_from_adjacency_matrix(adj)
-  basins <- components(basin_network)
-  basin_id <- basins$membership
-  basin_id[basin_id %in% which(basins$csize == 1)] <- NA
-  basin_matrix <- matrix(basin_id, nrow = nrow(x), ncol = ncol(x))
-  return(basin_matrix)
 }
 
 # for part one
