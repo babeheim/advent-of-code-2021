@@ -10,6 +10,174 @@ https://carbon.now.sh/ to show off code
 - [Hvitfeldt's solutions](https://emilhvitfeldt.github.io/rstats-adventofcode/2021.html)
 - Day 9 [also using igraph](https://twitter.com/rappa753/status/1468876602016735233)
 - [Antoine Fabri's page](https://github.com/moodymudskipper/adventofcode2021)
+- day 10 [using regmatches](https://twitter.com/TeaStats/status/1469239054625648645)
+- day 8 [animation](https://www.reddit.com/r/adventofcode/comments/rbuvq3/2021_day_8_part_2pygame_code_breaker/)
+
+
+
+# Day 13: Transparent Origami
+
+Here, we have to "fold" a set of coordinates along specific axes, hopefully decoding a message.
+
+```r
+
+fold_points <- function(path, n_folds = NULL) {
+  raw <- readLines(path)
+  folds <- raw[grep("^fold along", raw)]
+  raw_coords <- raw[grep("^\\d", raw)]
+  coords <- matrix(NA, ncol = 2, nrow = length(raw_coords))
+  for (i in 1:length(raw_coords)) coords[i, ] <- as.numeric(strsplit(raw_coords[i], ",")[[1]])
+  coords[,2] <- coords[,2] * (-1)
+  if (!is.null(n_folds)) folds <- folds[1:n_folds]
+  for (i in 1:length(folds)) {
+    fold <- as.numeric(substr(folds[i], regexpr("=", folds[i]) + 1, nchar(folds[i])))
+    if (grepl("y=", folds[i])) {
+      fold <- fold * (-1)
+      tar <- which(coords[,2] < fold)
+      coords[tar,2] <- (2 * fold) - coords[tar,2]
+    } else if (grepl("x=", folds[i])) {
+      tar <- which(coords[,1] > fold)
+      coords[tar,1] <- (2 * fold) - coords[tar,1]
+    }
+  }
+  coords <- coords[-which(duplicated(coords)),]
+  return(coords)
+}
+
+nrow(fold_points("day13_input_test.txt", n_folds = 1)) == 17
+nrow(fold_points("day13_input.txt", n_folds = 1)) == 689
+
+x <- fold_points("day13_input.txt", n_folds = 2)
+plot(x)
+
+```
+
+
+
+# Day 12: Passage Pathing
+
+Part One:
+
+> Your goal is to find the number of distinct paths that start at start, end at end, and don't visit small caves more than once. There are two types of caves: big caves (written in uppercase, like A) and small caves (written in lowercase, like b). It would be a waste of time to visit any small cave more than once, but big caves are large enough that it might be worth visiting them multiple times. So, all paths you find should visit small caves at most once, and can visit big caves any number of times.
+
+Part Two:
+
+> After reviewing the available paths, you realize you might have time to visit a single small cave twice. Specifically, big caves can be visited any number of times, a single small cave can be visited at most twice, and the remaining small caves can be visited at most once. However, the caves named start and end can only be visited exactly once each: once you leave the start cave, you may not return to it, and once you reach the end cave, the path must end immediately.
+
+```r
+
+map_paths <- function(path, once = TRUE) {
+  raw <- readLines(path)
+  edges <- data.frame(
+    node1 = substr(raw, 1, regexpr("-", raw)-1),
+    node2 = substr(raw, regexpr("-", raw)+1, nchar(raw))
+  )
+  rooms <- sort(unique(c(edges[,1], edges[,2])))
+  small_rooms <- rooms[!rooms %in% c("start", "end") & substr(rooms, 1, 1) %in% letters]
+
+  paths <- list()
+  backtracked_from <- vector("list", length = 50)
+  path <- c("start")
+  depth <- 1
+  valid_paths <- c(edges[which(edges$node1 == "start"),]$node2, edges[which(edges$node2 == "start"),]$node1)
+  while (path[depth] != "start" | length(valid_paths) > 0) {
+    if (path[depth] != "end" & length(valid_paths) > 0) {
+      # keep going
+      path <- c(path, valid_paths[1])
+      depth <- depth + 1
+      small_already_visited <- path[which(path %in% small_rooms)]
+      valid_paths <- unique(c(
+        edges[which(edges$node1 == path[depth]),]$node2,
+        edges[which(edges$node2 == path[depth]),]$node1
+      ))
+      # never return to the start
+      valid_paths <- setdiff(valid_paths, "start")
+      if (once | any(duplicated(small_already_visited))) {
+        # filter rule: don't return to small rooms already visited
+        valid_paths <- setdiff(valid_paths, small_already_visited)
+      }
+    } else {
+      if (path[depth] == "end") paths <- c(paths, list(path))
+      # backtrack and choose a different room
+      backtracked_from[[depth]] <- character()
+      backtracked_from[[depth - 1]] <- c(backtracked_from[[depth - 1]], path[depth])
+      path <- path[-depth]
+      depth <- depth - 1
+      small_already_visited <- path[which(path %in% small_rooms)]
+      valid_paths <- unique(c(
+        edges[which(edges$node1 == path[depth]),]$node2,
+        edges[which(edges$node2 == path[depth]),]$node1
+      ))
+      # never return to the start
+      valid_paths <- setdiff(valid_paths, "start")
+      if (once | any(duplicated(small_already_visited))) {
+        # filter rule: don't return to small rooms already visited
+        valid_paths <- setdiff(valid_paths, small_already_visited)
+      }
+      # since we are backtracking, also don't revisit the room you just came from
+      valid_paths <- setdiff(valid_paths, backtracked_from[[depth]])
+    }
+  }
+  return(paths)
+}
+
+```
+
+
+
+
+# Day 11: Dumbo Squid
+
+https://adventofcode.com/2021/day/11
+
+There are 100 octopuses arranged neatly in a 10 by 10 grid. Each octopus slowly gains energy over time and flashes brightly for a moment when its energy is full. 
+
+Each time step, the energy levels increase by 1. If an octopus with a level greater than 9 flashes, increasing the energy levels of all adjacent octopuses by 1, including diagonally adjacent. If this causes any neighbors to exceed an energy level of 9, they also flash. All octopuses who flashed then go to an energy of 0.
+
+In Part One, we want to know how many flashes will occur after a certain number of steps. In Part Two, we want to know the first step when all octopuses will flash simultaneously.
+
+```r
+
+sim_dumbos <- function(path, n_steps) {
+  raw <- readLines(path)
+  x <- matrix(NA, ncol = nchar(raw[1]), nrow = length(raw))
+  for (i in 1:nrow(x)) x[i,] <- as.numeric(strsplit(raw[i], split = "")[[1]])
+  n_flashes <- rep(0, n_steps)
+  for (step in 1:n_steps) {
+    # increment energy by 1
+    x <- x + 1
+    while (any(x >= 10, na.rm = TRUE)) {
+      # identify flashers
+      fl <- which(x >= 10)
+      # record flash & set state to NA
+      n_flashes[step] <- n_flashes[step] + length(fl)
+      x[fl] <- NA
+      # cascade flash to neighbors, including diagonals
+      for (i in 1:length(fl)) {
+        fl_j <- ((fl[i] - 1) %% nrow(x)) + 1
+        fl_k <- ((fl[i] - 1) %/% nrow(x)) + 1
+        north_min <- ifelse(fl_j > 1, fl_j - 1, fl_j)
+        south_min <- ifelse(fl_j < nrow(x), fl_j + 1, fl_j)
+        east_min <- ifelse(fl_k > 1, fl_k - 1, fl_k)
+        west_min <- ifelse(fl_k < ncol(x), fl_k + 1, fl_k)
+        x[north_min:south_min, east_min:west_min] <- x[north_min:south_min, east_min:west_min] + 1
+      }
+    }
+    # set flashers' energy to 0
+    x[which(is.na(x))] <- 0
+  }
+  return(n_flashes)
+}
+
+n_flashes <- sim_dumbos("day11_input_test.txt", 195)
+sum(n_flashes[1:100]) == 1656
+min(which(n_flashes == 100)) == 195
+
+n_flashes <- sim_dumbos("day11_input.txt", 1000)
+sum(n_flashes[1:100]) == 1649
+min(which(n_flashes == 100)) == 256
+
+```
 
 
 
@@ -217,7 +385,6 @@ fdgacbe cefdb cefbgd gcbe
 ```
 
 Before the `|` separator, we have ten patterns which represent the ten digits, but the meaning of each letter has been scrambled with respect to the correct segment for that digit. After the `|` separator is a set of four digits encoded by this cipher, which we want to de-cipher. There are ten such ciphers in the training set, and two hundred ciphers in the validation set.
-
 
 
 # Day 7: The Treachery of Whales
