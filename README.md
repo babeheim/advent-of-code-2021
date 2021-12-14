@@ -15,7 +15,94 @@ https://carbon.now.sh/ to show off code
 
 
 
+
+# Day 14: Extended Polymerization
+
+https://adventofcode.com/2021/day/14
+
+Here we want to know how many atoms will be involved in a polymer growth process. Start with a string like `NNCB` which represents four atoms in a chain, and apply insertion rules like `NC -> B`. This means, for a sequence of elements `N` and `C` we insert a `B` element in-between them. All insertions happen simultaneously, lengthening the polymer chain. The starting input is a chain of 20 atoms. Our target is to count up the most common and least common elements in the resulting polymer after 10 growth steps (in Part One) and afte 40 steps (in Part Two).
+
+Initially I tried just growing the new vector, but things quickly get intractable. The vector doubles every step, so for an initial length of $x$, after $n$ steps the vector is length $2^n (x-1) + 1$. The initial 10 steps is no problem, as the vector is now only 19,457 atoms long. However, after 15 or so steps we are at ~600,000 elements and my machine locks up, no where close to 40 steps, when the full polymer will have around 21 *trillion* elements! Clearly we need another strategy.
+
+The key is the problem only wants *counts* of each element, not the actual polymer sequence itself. We can book-keep those in a matrix, as each pair of atoms produces "two" pairs of atoms recursively. As long as we remember that each atom is being counted twice (except for the outer two atoms in the initial polymer), we just recurse the count vector.
+
+```r
+
+count_elements <- function(elements, pairs, pairs_n, x_init) {
+  n <- rep(0, nrow(elements))
+  for (i in 1:nrow(pairs)) {
+    tar <- which(elements$element == substr(pairs$pair[i], 1, 1))
+    n[tar] <- n[tar] + pairs_n[i]
+    tar <- which(elements$element == substr(pairs$pair[i], 2, 2))
+    n[tar] <- n[tar] + pairs_n[i]
+  }
+  n[which(elements$element == x_init[1])] <- n[which(elements$element == x_init[1])] + 1
+  n[which(elements$element == x_init[length(x_init)])] <- n[which(elements$element == x_init[length(x_init)])] + 1
+  n <- round(n / 2, 1)
+  return(n)
+}
+
+tabulate_elements <- function(path) {
+  raw <- readLines(path)
+  x <- strsplit(raw[1], "")[[1]]
+  raw <- raw[3:length(raw)]
+  pairs <- data.frame(
+    pair = substr(raw, 1, regexpr("\\s", raw) - 1),
+    child = substr(raw, regexpr("->\\s", raw) + 3, nchar(raw))
+  )
+  A <- matrix(0, nrow = nrow(pairs), ncol = nrow(pairs))
+  for (i in 1:nrow(pairs)) {
+    child_pair_1 <- paste0(substr(pairs$pair[i], 1, 1), pairs$child[i])
+    child_pair_2 <- paste0(pairs$child[i], substr(pairs$pair[i], 2, 2))
+    # for each pair as a column, flag rows which are children pairs
+    A[which(pairs$pair %in% c(child_pair_1, child_pair_2)), i] <- 1
+  }
+  # tabulate pairs in initial chain x
+  pairs$n_initial <- 0
+  for (i in 1:(length(x) - 1)) {
+    tar <- which(pairs$pair == paste(x[i:(i + 1)], collapse = ""))
+    pairs$n_initial[tar] <- pairs$n_initial[tar] + 1
+  }
+  # A is singular, so gotta matrix-multiply in a for-loop
+  n_running <- pairs$n_initial
+  for (i in 1:40) {
+    n_running <- A %*% n_running
+    if (i == 1) pairs$n_after_1 <- n_running
+    if (i == 10) pairs$n_after_10 <- n_running
+    if (i == 40) pairs$n_after_40 <- n_running
+  }
+  # now just count how many elements we have
+  elements <- data.frame(
+    element = sort(unique(pairs$child))
+  )
+  elements$n_initial <- 0
+  for (i in 1:length(x)) {
+    elements$n_initial[which(elements$element == x[i])] <- elements$n_initial[which(elements$element == x[i])] + 1
+  }
+  elements$n_after_1 <- count_elements(elements, pairs, pairs$n_after_1, x)
+  elements$n_after_10 <- count_elements(elements, pairs, pairs$n_after_10, x)
+  elements$n_after_40 <- count_elements(elements, pairs, pairs$n_after_40, x)
+  return(elements)
+}
+
+tab <- tabulate_elements("day14_input_test.txt")
+max(tab$n_after_10) - min(tab$n_after_10) == 1588
+max(tab$n_after_40) == 2192039569602
+min(tab$n_after_40) == 3849876073
+max(tab$n_after_40) - min(tab$n_after_40) == 2188189693529
+
+tab <- tabulate_elements("day14_input.txt")
+max(tab$n_after_10) - min(tab$n_after_10) == 2549 # part 1 answer
+max(tab$n_after_40) - min(tab$n_after_40) == 2516901104210 # part 2 answer
+
+```
+
+
+
+
 # Day 13: Transparent Origami
+
+https://adventofcode.com/2021/day/13
 
 Here, we have to "fold" a set of coordinates along specific axes, hopefully decoding a message.
 
@@ -55,6 +142,8 @@ plot(x)
 
 
 # Day 12: Passage Pathing
+
+https://adventofcode.com/2021/day/12
 
 Part One:
 
