@@ -8,23 +8,24 @@ https://www.reddit.com/r/adventofcode/
 ## Solvers and Solutions
 
 - [Reddit Megathreads](https://www.reddit.com/r/adventofcode/wiki/solution_megathreads)
-- Day 2 using [{R6} objects](https://github.com/karawoo/adventofcode2021/blob/main/R/day02.R#L98-L150)
 - [Hvitfeldt's solutions](https://emilhvitfeldt.github.io/rstats-adventofcode/2021.html)
-- Day 9 [also using igraph](https://twitter.com/rappa753/status/1468876602016735233)
 - [Antoine Fabri's page](https://github.com/moodymudskipper/adventofcode2021)
-- day 10 [using regmatches](https://twitter.com/TeaStats/status/1469239054625648645)
-- day 8 [animation](https://www.reddit.com/r/adventofcode/comments/rbuvq3/2021_day_8_part_2pygame_code_breaker/)
-- day 14 [animation](https://twitter.com/nbardiuk/status/1470761538969645067)
-- [mebeim's page](https://t.co/SyFa8xep8N)
+- [mebeim's page](https://github.com/mebeim/aoc/blob/master/2021/README.md)
+- Day 2 using [{R6} objects](https://github.com/karawoo/adventofcode2021/blob/main/R/day02.R#L98-L150)
+- Day 8 [animation](https://www.reddit.com/r/adventofcode/comments/rbuvq3/2021_day_8_part_2pygame_code_breaker/)
+- Day 9 [also using igraph](https://twitter.com/rappa753/status/1468876602016735233)
+- Day 10 [using regmatches](https://twitter.com/TeaStats/status/1469239054625648645)
+- Day 14 [animation](https://twitter.com/nbardiuk/status/1470761538969645067)
 
 
 # Day 16: Packet Decoder
 
-We are to decode nested packets of hexadecimal. Each packet begins with three bits that encode the packet version. The next three bits encode the packet ID type. The next set of bits of the packet depends on the packet ID type, and may themselves represent additional packets nested within the packet. If it is the outermost packet, it may also end with trailing zeros, which are to be ignored.
+We are to decode nested packets from a hexadecimal bitstring. Each packet begins with three bits that encode the *packet version*. The next three bits encode the *packet type ID*. The next set of bits in the packet depends on the packet type ID, either holding a big-endian number called the *literal value* or holding additional packets nested within the packet. The outermost packet may also end with trailing zeros, which are to be ignored.
 
-Packets with a type ID of 4 are for holding a literal value, a single binary number. The number is broken up into four-bit big-endian subsets called groups. Each group is preceeded by a 1-bit except the last group, which is preceeded by a 0-bit. The groups together are then padded with leading zeros until they are a multiple of 4 bits.
+Packets with a packet type ID of 4 are the ones holding a literal value, a single binary number. The number is broken up into four-bit big-endian subsets called groups. Each group is preceeded by a 1-bit except the last group, which is preceeded by a 0-bit. The groups together are then padded with trailing zeros until they are a multiple of 4 bits.
 
-Type ID:
+The other packet type ID values indicate a specific operation that is to be performed on the sub-packets within the packet. They are:
+
 - 0: sum of values in sub-packets
 - 1: product of values in sub-packets
 - 2: minimum of values in sub-packets
@@ -33,6 +34,8 @@ Type ID:
 - 5: greater than packets, returns 1 if value of first sub-packet is greater than value of second sub-packet, otherwise returns 0; must have exactly two sub-packets
 - 6: less than packets, returns 1 if value of first sub-packet is less than value of second sub-packet, otherwise returns 0; must have exactly two sub-packets
 - 7: equals to packets, returns 1 if value of first sub-packet is equal to than value of second sub-packet, otherwise returns 0; must have exactly two sub-packets
+
+In Part One, we are asked to calculate the sum of the version number a packet and all sub-packets recursively. In Part Two we are to perform all the operations within a packet.
 
 ```r
 
@@ -448,13 +451,13 @@ map_paths <- function(path, once = TRUE) {
 
 
 
-# Day 11: Dumbo Squid
+# Day 11: Dumbo Octopus
 
 https://adventofcode.com/2021/day/11
 
 There are 100 octopuses arranged neatly in a 10 by 10 grid. Each octopus slowly gains energy over time and flashes brightly for a moment when its energy is full. 
 
-Each time step, the energy levels increase by 1. If an octopus with a level greater than 9 flashes, increasing the energy levels of all adjacent octopuses by 1, including diagonally adjacent. If this causes any neighbors to exceed an energy level of 9, they also flash. All octopuses who flashed then go to an energy of 0.
+Each time step, the energy levels increase by 1. An octopus with a level greater than 9 flashes, which increasing the energy levels of all adjacent octopuses by 1, including those diagonally adjacent. If this causes any neighbors to exceed an energy level of 9, they also flash. All octopuses who flashed then go to an energy of 0.
 
 In Part One, we want to know how many flashes will occur after a certain number of steps. In Part Two, we want to know the first step when all octopuses will flash simultaneously.
 
@@ -503,12 +506,13 @@ min(which(n_flashes == 100)) == 256
 
 
 
-
 # Day 10: Syntax Scoring
 
 https://adventofcode.com/2021/day/10
 
-Lines with correct syntax have nested opening and closing brackets that all match. A "corrupted" line opens on one left bracket (either `(`, `[`, `{`, or `<`) but closes on the wrong right bracket (either `)`, `]`, `}`, `>`). An "incomplete" line is not corrupted, but has un-matched right brackets. In Part One, our task is to find the corrupted lines and score them. In Part Two, we discard the corrupted lines and find the incomplete lines, complete them, score the completions, and return the median score. I'll do everything in one function, `analyze_lines()`.
+Lines with correct syntax have nested opening and closing brackets that all match. A "corrupted" line opens on one left bracket (either `(`, `[`, `{`, or `<`) but closes on the wrong right bracket (either `)`, `]`, `}`, `>`). An "incomplete" line is not corrupted, but has un-matched right brackets.
+
+In Part One, our task is to find the corrupted lines and score them. In Part Two, we discard the corrupted lines and find the incomplete lines, complete them, score the completions, and return the median score. I'll do everything in one function, `analyze_lines()`.
 
 ```r
 
@@ -907,23 +911,6 @@ sim_lanternfish_v4("day6_input_test.txt") == 5934
 sim_lanternfish_v4("day6_input.txt") == 385391
 sim_lanternfish_v4("day6_input_test.txt", n_days = 256) == 26984457539
 sim_lanternfish_v4("day6_input.txt", n_days = 256) == 1728611055389
-
-```
-
-time out the essential code
-
-```r
-
-tic()
-n <- rep(0, 9)
-init <- as.numeric(strsplit(readLines("day6_input.txt"), split = ",")[[1]])
-for (i in 1:9) n[i] <- sum(init == (i - 1))
-for (i in 1:18) {
-  n[8] <- n[8] + n[1] # parents switch from state 0 to state 7
-  n <- c(n[2:9], n[1]) # all decrease 1 state; offspring to state 8
-}
-sum(n) # 0.043 seconds
-toc()
 
 ```
 
