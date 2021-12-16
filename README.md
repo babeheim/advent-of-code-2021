@@ -3,16 +3,249 @@
 
 https://adventofcode.com/
 https://carbon.now.sh/ to show off code
+https://www.reddit.com/r/adventofcode/
 
-## Other Solvers
+## Solvers and Solutions
 
+- [Reddit Megathreads](https://www.reddit.com/r/adventofcode/wiki/solution_megathreads)
 - Day 2 using [{R6} objects](https://github.com/karawoo/adventofcode2021/blob/main/R/day02.R#L98-L150)
 - [Hvitfeldt's solutions](https://emilhvitfeldt.github.io/rstats-adventofcode/2021.html)
 - Day 9 [also using igraph](https://twitter.com/rappa753/status/1468876602016735233)
 - [Antoine Fabri's page](https://github.com/moodymudskipper/adventofcode2021)
 - day 10 [using regmatches](https://twitter.com/TeaStats/status/1469239054625648645)
 - day 8 [animation](https://www.reddit.com/r/adventofcode/comments/rbuvq3/2021_day_8_part_2pygame_code_breaker/)
+- day 14 [animation](https://twitter.com/nbardiuk/status/1470761538969645067)
+- [mebeim's page](https://t.co/SyFa8xep8N)
 
+
+# Day 16: Packet Decoder
+
+We are to decode nested packets of hexadecimal. Each packet begins with three bits that encode the packet version. The next three bits encode the packet ID type. The next set of bits of the packet depends on the packet ID type, and may themselves represent additional packets nested within the packet. If it is the outermost packet, it may also end with trailing zeros, which are to be ignored.
+
+Packets with a type ID of 4 are for holding a literal value, a single binary number. The number is broken up into four-bit big-endian subsets called groups. Each group is preceeded by a 1-bit except the last group, which is preceeded by a 0-bit. The groups together are then padded with leading zeros until they are a multiple of 4 bits.
+
+Type ID:
+- 0: sum of values in sub-packets
+- 1: product of values in sub-packets
+- 2: minimum of values in sub-packets
+- 3: maximum of values in sub-packets
+- 4: a literal value packet
+- 5: greater than packets, returns 1 if value of first sub-packet is greater than value of second sub-packet, otherwise returns 0; must have exactly two sub-packets
+- 6: less than packets, returns 1 if value of first sub-packet is less than value of second sub-packet, otherwise returns 0; must have exactly two sub-packets
+- 7: equals to packets, returns 1 if value of first sub-packet is equal to than value of second sub-packet, otherwise returns 0; must have exactly two sub-packets
+
+```r
+
+halfbit_to_bin <- function(x) {
+  if (x == "0") out <- c(0, 0, 0, 0)
+  if (x == "1") out <- c(0, 0, 0, 1)
+  if (x == "2") out <- c(0, 0, 1, 0)
+  if (x == "3") out <- c(0, 0, 1, 1)
+  if (x == "4") out <- c(0, 1, 0, 0)
+  if (x == "5") out <- c(0, 1, 0, 1)
+  if (x == "6") out <- c(0, 1, 1, 0)
+  if (x == "7") out <- c(0, 1, 1, 1)
+  if (x == "8") out <- c(1, 0, 0, 0)
+  if (x == "9") out <- c(1, 0, 0, 1)
+  if (x == "a") out <- c(1, 0, 1, 0)
+  if (x == "b") out <- c(1, 0, 1, 1)
+  if (x == "c") out <- c(1, 1, 0, 0)
+  if (x == "d") out <- c(1, 1, 0, 1)
+  if (x == "e") out <- c(1, 1, 1, 0)
+  if (x == "f") out <- c(1, 1, 1, 1)
+  out <- as.logical(out)
+  return(out)
+}
+
+hex_to_bin <- function(x) {
+  x <- tolower(strsplit(x, "")[[1]])
+  out <- logical()
+  for (i in 1:length(x)) {
+    add <- halfbit_to_bin(x[i])
+    out <- c(out, add)
+  }
+  return(out)
+}
+
+bin_to_dec <- function(x) {
+  sum((2^((length(x):1) - 1)) * x)
+}
+
+parse_bits_packet_jar <- function(x, n = Inf) {
+  out <- list()
+  packet_counter <- 1
+  while (packet_counter <= n & length(x) >= 11 & !all(x == FALSE)) {
+    out[[packet_counter]] <- parse_bits_packet(x)
+    x <- x[-(1:out[[packet_counter]]$total_length)]
+    packet_counter <- packet_counter + 1
+  }
+  return(out)
+}
+
+parse_bits_packet <- function(x){
+  if (!all(is.logical(x))) {
+    x <- hex_to_bin(x)
+  }
+  out <- list()
+  out$packet_version = bin_to_dec(x[1:3])
+  out$packet_type_id = bin_to_dec(x[4:6])
+  out$version_sum <- out$packet_version
+  if (out$packet_type_id == 4) {
+    data <- x[7:length(x)]
+    group_ids <- data[seq(0, (length(data) - 1), by = 5) + 1]
+    last_group_start <- 5 * (min(which(group_ids == 0)) - 1) + 1
+    data <- data[1:(last_group_start + 4)]
+    out$n_groups <- length(data) %/% 5
+    out$total_length <- 6 + out$n_groups * 5
+    group_id <- (1:length(data) - 1) %/% 5 + 1
+    ids <- 1:out$n_groups
+    value <- logical()
+    for (id in ids) {
+      group_data <- data[which(group_id == id)]
+      value <- c(value, group_data[2:5])
+      if (group_data[1] == FALSE) break()
+    }
+    out$literal_value <- bin_to_dec(value)
+    out$expression <- out$literal_value
+  } else {
+    out$length_type_id <- x[7]
+    if (out$length_type_id == 1) {
+      out$subpacket_count <- bin_to_dec(x[0:10 + 8])
+      subpackets <- x[19:length(x)]
+      out$subpackets <- parse_bits_packet_jar(subpackets, out$subpacket_count)
+      out$total_length <- 18
+      for (i in 1:length(out$subpackets)) {
+        out$total_length <- out$total_length + out$subpackets[[i]]$total_length
+      }
+    } else {
+      out$subpacket_length <- bin_to_dec(x[0:14 + 8])
+      subpackets <- x[23 + 0:(out$subpacket_length - 1)]
+      out$subpackets <- parse_bits_packet_jar(subpackets)
+      out$total_length <- 23 + (out$subpacket_length - 1)
+    }
+    for (i in 1:length(out$subpackets)) {
+      out$version_sum <- out$version_sum + out$subpackets[[i]]$version_sum
+    }
+    # add arguments
+    out$arguments <- character(0)
+    for (i in 1:length(out$subpackets)) {
+      if (i == 1) {
+         out$arguments <- out$subpackets[[i]]$expression
+      } else {
+        out$arguments <- paste(out$arguments, out$subpackets[[i]]$expression, sep = ",")
+      }
+    }
+    out$arguments <- paste0("(", out$arguments, ")")
+
+    # add operator
+    # # in R, everything is a function call!
+    if (out$packet_type_id == 0) out$operator <- "'sum'"
+    if (out$packet_type_id == 1) out$operator <- "'prod'"
+    if (out$packet_type_id == 2) out$operator <- "'min'"
+    if (out$packet_type_id == 3) out$operator <- "'max'"
+    if (out$packet_type_id == 5) out$operator <- "'>'"
+    if (out$packet_type_id == 6) out$operator <- "'<'"
+    if (out$packet_type_id == 7) out$operator <- "'=='"
+    
+    # create expression
+    out$expression <- paste0(out$operator, out$arguments)
+
+    # evaluate too??
+    out$evaluation <- eval(parse(text = out$expression))
+  }
+  return(out)
+}
+
+dat <- parse_bits_packet(readLines("day16_input.txt"))
+dat$version_sum == 951 # part one
+dat$evaluation == 902198718880 # part two
+
+```
+
+
+
+
+# Day 15: Chiton
+
+Given a two-dimensional array of integers, find the up-down-left-right path that has the lowest total value. You start in the top-left cell, and you don't count that cell's value in your total score, but every other cell along the path is added together to get the total risk score.
+
+```r
+
+calc_least_cost_path <- function(path, use_full = FALSE) {
+
+  raw <- readLines(path)
+  diag <- FALSE
+
+  # load first tile
+  n <- length(raw)
+  m <- nchar(raw[1])
+  cost <- matrix(NA, nrow = n, ncol = m)
+  for (i in 1:length(raw)) cost[i,] <- as.numeric(strsplit(raw[i], "")[[1]])
+
+  if (use_full) {
+    # construct full map, 5x5 = 25 tiles
+    # each tile increments all values by +1 down and +1 right
+    cost_full <- matrix(NA, nrow = n * 5, ncol = m * 5)
+    register_map <- c(1:9, 1:8) # highest value is 9 + 8 -> 8
+    for (k in 1:5) {
+      for (j in 1:5) {
+        cost_to_add <- cost + (j - 1) + (k - 1)
+        cost_to_add <- matrix(register_map[cost_to_add], nrow = n, ncol = m)
+        cost_full[(j - 1)*n + 1:n, (k - 1)*m + 1:m] <- cost_to_add
+      }
+    }
+    cost <- cost_full
+    n <- nrow(cost)
+    m <- ncol(cost)
+  }
+
+  dist <- matrix(Inf, nrow = n, ncol = m)
+  dist[1] <- 0
+  i_to_check <- 1:(n * m)
+  path <- vector("list", length(dist)) # linear address
+  
+  # in an R matrix, the linear index i is top-left to bottom-right
+  # the j,k address is [(i - 1) %% nrow(m) + 1, (i - 1) %/% nrow(m) + 1]
+  # and the i address is j + (k - 1) * nrow(m)
+
+  while (length(i_to_check) > 0) {
+    if (length(i_to_check) %% ((n*m)/100) == 0) print(round(length(i_to_check)/(n*m), 2))
+    # identify the current minimum-distance entry in dist & discard
+    min_i <- i_to_check[which.min(dist[i_to_check])]
+    i_to_check <- setdiff(i_to_check, min_i)
+    # identify neighbors in the grid in north-south, east-west relationships only
+    min_j <- (min_i - 1) %% n + 1
+    min_k <- (min_i - 1) %/% n + 1
+    neighbors_j <- min_j + c(0, 0, -1, 1)
+    neighbors_k <- min_k + c(-1, 1, 0, 0)
+    neighbors_i <- neighbors_j + (neighbors_k - 1) * n
+    drop <- which(neighbors_j < 1 | neighbors_j > n | neighbors_k < 1 | neighbors_k > m)
+    if (length(drop) > 0) neighbors_i <- neighbors_i[-drop]
+    neighbors_i <- intersect(neighbors_i, i_to_check)
+    for (neighbor in neighbors_i) {
+      if (diag) print(paste("evaluating neighbor", neighbor, "of current minimum", min_i))
+      if (cost[neighbor] + dist[min_i] < dist[neighbor]) {
+        dist[neighbor] <- cost[neighbor] + dist[min_i]
+        if (diag) print(paste("dist to patch", neighbor, "now", dist[neighbor], "via patch", min_i))
+        path[[neighbor]] <- c(path[[min_i]], min_i)
+      } else {
+        if (diag) print (paste("path to", neighbor, "unchanged"))
+      }
+    }
+  }
+
+  return(dist[n*m])
+}
+
+# part one:
+calc_least_cost_path("day15_input_test.txt") == 40 # 0.063 sec
+calc_least_cost_path("day15_input.txt") == 583 # 3.002 sec
+
+# part two:
+calc_least_cost_path("day15_input_test.txt", use_full = TRUE) == 315 # 0.226 sec
+calc_least_cost_path("day15_input.txt", use_full = TRUE) == 2927 # 4554 sec, 1.2 hrs
+
+```
 
 
 
