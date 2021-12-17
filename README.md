@@ -11,11 +11,107 @@ https://www.reddit.com/r/adventofcode/
 - [Hvitfeldt's solutions](https://emilhvitfeldt.github.io/rstats-adventofcode/2021.html)
 - [Antoine Fabri's page](https://github.com/moodymudskipper/adventofcode2021)
 - [mebeim's page](https://github.com/mebeim/aoc/blob/master/2021/README.md)
+- [Sijmen J. Mulder's page](https://github.com/sjmulder/aoc)
 - Day 2 using [{R6} objects](https://github.com/karawoo/adventofcode2021/blob/main/R/day02.R#L98-L150)
 - Day 8 [animation](https://www.reddit.com/r/adventofcode/comments/rbuvq3/2021_day_8_part_2pygame_code_breaker/)
 - Day 9 [also using igraph](https://twitter.com/rappa753/status/1468876602016735233)
 - Day 10 [using regmatches](https://twitter.com/TeaStats/status/1469239054625648645)
 - Day 14 [animation](https://twitter.com/nbardiuk/status/1470761538969645067)
+
+```r
+
+download_ewds <- function(key) {
+  dir.create(key)
+  files <- list.files(paste0("/home/bret/Dropbox/projects/2021/ewd/sources/www.cs.utexas.edu/~EWD/transcriptions/", key), pattern = "*.html", full.names = FALSE, recursive = FALSE)
+  files <- gsub(".html$", ".PDF", files)
+  for (i in files) {
+    ewd_name <- paste0("https://www.cs.utexas.edu/users/EWD/", tolower(key), "/", i)
+    dest_name <- file.path(key, i)
+    print(dest_name)
+    try(download.file(ewd_name, destfile = dest_name))
+    print("waiting 5 seconds")
+    Sys.sleep(5)
+  }
+}
+
+# download_ewds("EWD00xx")
+# download_ewds("EWD09xx")
+# download_ewds("EWD10xx")
+# download_ewds("EWD01xx")
+# download_ewds("EWD02xx")
+# download_ewds("EWD04xx")
+# download_ewds("EWD05xx")
+# download_ewds("EWD06xx")
+# download_ewds("EWD07xx")
+
+download_ewds("EWD08xx")
+download_ewds("EWD11xx")
+download_ewds("EWD12xx")
+download_ewds("EWD13xx")
+download_ewds("EWD03xx")
+
+```
+
+Some favorites from ppl on hacker news:
+1108
+1305
+1151
+1165
+707
+
+
+# Day 17: Trick Shot
+
+Here we're tasked with calculating a ballistic trajectory in two dimensions, trying to hit a rectangular target area. At each time step, our probe's x-position updates by its x-velocity at the previous timestep, so $x_{t+1} = x_t + v_t$, and its' y-position updates the same. The probe begins at coordinates 0,0 and its velocity in both dimensions decreases by one each timestep from the initial values. The x-velocity slows to 0 and stops (due to drag), but the y-velocity continues to decrement by 1 without end (due to gravity). The probe has successfully reached the target if its coordinates are within the target boundaries at the end of a discrete time step - speeding through the target to the other side doesn't count.
+
+In Part One, we calculate maximum possible vertical height the probe can attain and still make it to the target zone. In Part Two, we calculate all possible paths that make it to the target zone, at least for velocity values in the natural numbers.
+
+We can solve Part One without a computer. A key fact is that the target is *below* the origin, so the probe must complete a full parabola, return to the starting depth, and then continue on to the target depth. If the probe left with velocity $v_y$, it must have a velocity of -(v_y + 1) upon returning to the starting location. If this velocity is *greater* than $-d$, the lower boundary of the target rectangle, the probe will already be past the target upon finishing the next time step. So, the fastest the probe can go is $-d - 1$, which also attains the maximum height. For any velocity $v_y$, the maximum height of the parabola is $v_0 (v_0 +1)/2$, so the maximum to still hit the target is just $-d (-d + 1) / 2$.
+
+I solved Part Two by brute force, exploring every combination of velocities within a range to see which ones hit the target. However, we can use more math to set smart boundaries, limiting our exploration just to trajectories that are reasonable. We already saw that $v_y$ cannot be faster than $-d$, so we don't need to consider any velocity greater than that. Similarly, we don't need to consider velocities less than d, since if fired down, the probe will over-shoot the target otherwise. We can limit our evaluation to the range d to (-d - 1), inclusive. Similarly, our x-velocity range is limited. If we set $v_x$ to b, where b is the right-most wall of the rectangle, we will reach it in one time step. Conversely, if we set $v_x$ to the smallest value that satisfies $v_x (v_x + 1)/2 \leq a$, where $a$ is the left boundary, we will just cross into the target zone before drag halts our movement. This boundary condition turns out to be $\sqrt(8a + 1) - 1)/2$. This defines the range on x!
+
+At this point, it's easy to brute force, and we're done.
+
+
+```r
+
+test_shot <- function(v0, a, b, c, d) {
+  v0 <- as.numeric(v0)
+  i <- 0:(2*(abs(d) + 1) + 1)
+  v_x <- v0[1] - i
+  v_x[v_x < 0] <- 0
+  v_y <- v0[2] - i
+  x <- c(0, cumsum(v_x))
+  y <- c(0, cumsum(v_y))
+  any(a <= x & x <= b & d <= y & y <= c)
+}
+
+a <- 20
+b <- 30
+c <- (-5)
+d <- (-10)
+
+v_x_range <- ceiling((sqrt(8 * a + 1) - 1)/2):b
+v_y_range <- d:(-(d+1))
+dat <- expand.grid(v_x_range, v_y_range)
+dat$hit <- apply(dat, 1, test_shot, a, b, c, d)
+sum(dat$hit) # 112 paths in test case
+
+a <- 269
+b <- 292
+c <- (-44)
+d <- -68
+
+v_x_range <- ceiling((sqrt(8 * a + 1) - 1)/2):b
+v_y_range <- d:(-(d+1))
+dat <- expand.grid(v_x_range, v_y_range)
+dat$hit <- apply(dat, 1, test_shot, a, b, c, d)
+
+sum(dat$hit) # 996 paths in full case
+
+
+```
+
 
 
 # Day 16: Packet Decoder
