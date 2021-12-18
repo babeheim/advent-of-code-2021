@@ -18,46 +18,7 @@ https://www.reddit.com/r/adventofcode/
 - Day 10 [using regmatches](https://twitter.com/TeaStats/status/1469239054625648645)
 - Day 14 [animation](https://twitter.com/nbardiuk/status/1470761538969645067)
 
-```r
 
-download_ewds <- function(key) {
-  dir.create(key)
-  files <- list.files(paste0("/home/bret/Dropbox/projects/2021/ewd/sources/www.cs.utexas.edu/~EWD/transcriptions/", key), pattern = "*.html", full.names = FALSE, recursive = FALSE)
-  files <- gsub(".html$", ".PDF", files)
-  for (i in files) {
-    ewd_name <- paste0("https://www.cs.utexas.edu/users/EWD/", tolower(key), "/", i)
-    dest_name <- file.path(key, i)
-    print(dest_name)
-    try(download.file(ewd_name, destfile = dest_name))
-    print("waiting 5 seconds")
-    Sys.sleep(5)
-  }
-}
-
-# download_ewds("EWD00xx")
-# download_ewds("EWD09xx")
-# download_ewds("EWD10xx")
-# download_ewds("EWD01xx")
-# download_ewds("EWD02xx")
-# download_ewds("EWD04xx")
-# download_ewds("EWD05xx")
-# download_ewds("EWD06xx")
-# download_ewds("EWD07xx")
-
-download_ewds("EWD08xx")
-download_ewds("EWD11xx")
-download_ewds("EWD12xx")
-download_ewds("EWD13xx")
-download_ewds("EWD03xx")
-
-```
-
-Some favorites from ppl on hacker news:
-1108
-1305
-1151
-1165
-707
 
 
 # Day 17: Trick Shot
