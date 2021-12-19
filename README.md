@@ -46,6 +46,8 @@ let's test this out in just one dimension...
 
 rm(list = ls())
 
+# 1-d data simulator
+
 s0_x <- sample(-1000:1500, 1)
 s1_x <- s0_x + sample(-500:500, 1)
 scanner_range <- 1000
@@ -69,54 +71,52 @@ s[[2]] <- dplyr::bind_rows(s[[2]], list(x = 0, is_beacon = FALSE, scanner = 1))
 # j <- sample(which((s[[2]]$x + (s1_x - s0_x)) %in% s[[1]]$x), 1)
 # k <- which(s[[1]]$x == (s[[2]][j,]$x + (s1_x - s0_x)))
 
-while(length(s) > 1) {
-  print(paste(length(s) - 1, "scanners remain unmatched"))
-  picks <- c(1, 2)
-  ref <- s[[picks[1]]]
-  print(paste("comparing scanner", picks[2], "against reference scanner", picks[1]))
-  for (i in 1:2) {  # for each orientation i
-    com <- s[[picks[2]]]
-    com$x <- com$x * (-1)^(i - 1)
-    for (j in 1:nrow(com)) { # for each j in the comparison set
-      # calculate the coordinates in com with point j as new origin
-      com$x_j <- com$x - com$x[j]
-      stopifnot(com$x_j[j] == 0)
-      stopifnot(com$x_j[nrow(com)] == (-com$x[j]))
-      for (k in 1:nrow(ref)) {
-        # calculate in com assuming com point j (@ which com$x_j[j] = 0) is ref point k
-        com$x_jk <- com$x_j + ref$x[k]
-        stopifnot(com$x_jk[j] == ref$x[k])
-        # having done the translation, see if the points match up
-        within_ref <- which(com$is_beacon & abs(com$x_jk) <= scanner_range)
-        com_matches <- all(
-          com$x_jk[within_ref] %in% ref$x
-        )
-        # calculate in ref assuming com point j (@ which com$x_j[j] = 0) is ref point k
-        # ref$x_kj <- ref$x + (com$x[j] - ref$x[k])
-        # # having done the translation, see if the points match up
-        # within_com <- which(ref$is_beacon & abs(ref$x_kj) <= scanner_range)
-        # com_matches <- all(
-        #   com$x_jk[within_ref] %in% ref$x
-        # )
-        if (length(within_ref) > 12 & com_matches) {
-          print(paste("all reference points matched connecting ref point", k, "and com point", j))
-          add <- com[-within_ref,]
-          add$x <- add$x_jk
-          add <- dplyr::select(add, x, is_beacon, scanner)
-          s[[picks[1]]] <- dplyr::bind_rows(s[[picks[1]]], add)
-          # having matched the comparison scanner, remove that dataframe from s
-          s <- s[-picks[2]]
-          break()
-        }
-      } # for each point k in reference set
-      if (com_matches) break()
-    } # for each point j in the comparison set
-    if (com_matches) break()
-    print("switching orientation")
-  } # for each orientation i
-} # while some scanners unmatched
+# matching loop
 
-out <- s[[1]]
+match_scanners <- function(s) {
+  while(length(s) > 1) {
+    print(paste(length(s) - 1, "scanners remain unmatched"))
+    picks <- c(1, 2)
+    ref <- s[[picks[1]]]
+    print(paste("comparing scanner", picks[2], "against reference scanner", picks[1]))
+    for (i in 1:2) {  # for each orientation i
+      com <- s[[picks[2]]]
+      com$x <- com$x * (-1)^(i - 1)
+      for (j in 1:nrow(com)) { # for each j in the comparison set
+        # calculate the coordinates in com with point j as new origin
+        com$x_j <- com$x - com$x[j]
+        stopifnot(com$x_j[j] == 0)
+        stopifnot(com$x_j[nrow(com)] == (-com$x[j]))
+        for (k in 1:nrow(ref)) {
+          # calculate in com assuming com point j (@ which com$x_j[j] = 0) is ref point k
+          com$x_jk <- com$x_j + ref$x[k]
+          stopifnot(com$x_jk[j] == ref$x[k])
+          # having done the translation, see if the points match up
+          within_ref <- which(com$is_beacon & abs(com$x_jk) <= scanner_range)
+          com_matches <- all(
+            com$x_jk[within_ref] %in% ref$x
+          )
+          if (length(within_ref) > 12 & com_matches) {
+            print(paste("all reference points matched connecting ref point", k, "and com point", j))
+            add <- com[-within_ref,]
+            add$x <- add$x_jk
+            add <- dplyr::select(add, x, is_beacon, scanner)
+            s[[picks[1]]] <- dplyr::bind_rows(s[[picks[1]]], add)
+            # having matched the comparison scanner, remove that dataframe from s
+            s <- s[-picks[2]]
+            break()
+          }
+        } # for each point k in reference set
+        if (com_matches) break()
+      } # for each point j in the comparison set
+      if (com_matches) break()
+      print("switching orientation")
+    } # for each orientation i
+  } # while some scanners unmatched
+  return(s[[1]])
+}
+
+out <- match_scanners(s)
 out[which(!out$is_beacon),]
 out[which(out$scanner == 1),]$x == (s1_x - s0_x)
 
@@ -124,13 +124,64 @@ out[which(out$scanner == 1),]$x == (s1_x - s0_x)
 
 We have mastered the single dimensional version of the problem!
 
-Now let's modify to do it in two dimensions...there are 8 orientations to consider
+Now let's modify to do it in two dimensions...there are 8 orientations to consider. First, we need to understand how we will rotate the points
+
+```r
+
+# 0 degree rotation, aka identity
+A <- matrix(c(1, 0, 0, 1), byrow = TRUE, ncol = 2)
+# 90 degree counter-clockwise rotation, aka 270 clockwise
+A <- matrix(c(0, -1, 1, 0), byrow = TRUE, ncol = 2)
+# 180 degree rotation, clockwise or counterclockwise
+A <- matrix(c(-1, 0, 0, -1), byrow = TRUE, ncol = 2)
+# 270 degree counter-clockwise rotation aka 90 degree clockwise
+A <- matrix(c(0, 1, -1, 0), byrow = TRUE, ncol = 2)
+
+# mirror about vertical axis
+A <- matrix(c(-1, 0, 0, 1), byrow = TRUE, ncol = 2)
+# mirror about the horizonal axis
+A <- matrix(c(1, 0, 0, -1), byrow = TRUE, ncol = 2)
+
+xy <- rbind(
+  c(1, 1),
+  c(2, 2),
+  c(3, 3),
+  c(4, 2),
+  c(5, 1)
+)
+
+xy_prime <- t(A %*% t(xy))
+
+plot(xy_prime[,1], xy_prime[,2], type = "l", xlim = c(-5, 5), ylim = c(-5, 5))
+abline(h = 0, col = "gray")
+abline(v = 0, col = "gray")
 
 ```
 
+There are 4 * 2 = 8 unique orientations for any x-y space, defined by the 4 rotation matricies and whether it is mirrored or not. We just cycle through each I guess?
+
+```r
+
+A <- matrix(c(0, -1, 1, 0), byrow = TRUE, ncol = 2)
+M <- matrix(c(1, 0, 0, -1), byrow = TRUE, ncol = 2)
+
+apply_transform <- function(data, n_turns = 0, mirror = FALSE) {
+  if (n_turns > 0) {
+    for (i in 1:n_turns) {
+      data <- t(A %*% t(data))
+    }
+  }
+  if (mirror) data <- t(M %*% t(data))
+  return(data)
+}
+
+xy_prime <- apply_transform(xy, 4, FALSE)
+
+plot(xy_prime[,1], xy_prime[,2], type = "l", xlim = c(-5, 5), ylim = c(-5, 5))
+abline(h = 0, col = "gray")
+abline(v = 0, col = "gray")
 
 ```
-
 
 
 ```r
@@ -149,8 +200,208 @@ for (i in 1:10) {
 
 ```
 
+Now we look at the 2-d version
+
+```r
+
+rm(list = ls())
+
+# 2-d data simulator
+
+s0_x <- sample(-1000:1500, 1)
+s1_x <- s0_x + sample(-500:500, 1)
+s0_y <- sample(-1000:1500, 1)
+s1_y <- s0_y + sample(-500:500, 1)
+scanner_range <- 1000
+
+s <- list()
+x <- sample(-1000:1500, 400)
+y <- sample(-1000:1500, 400)
+hits <- which(abs(x - s0_x) <= scanner_range & abs(y - s0_y) <= scanner_range)
+s[[1]] <- data.frame(
+  x = x[hits] - s0_x,
+  y = y[hits] - s0_y
+)
+hits <- which(abs(x - s1_x) <= scanner_range & abs(y - s1_y) <= scanner_range)
+s[[2]] <- data.frame(
+  x = x[hits] - s1_x,
+  y = y[hits] - s1_y
+)
+s[[1]]$is_beacon <- TRUE
+s[[2]]$is_beacon <- TRUE
+s[[1]] <- dplyr::bind_rows(s[[1]], list(x = 0, y = 0, is_beacon = FALSE, scanner = 0))
+s[[2]] <- dplyr::bind_rows(s[[2]], list(x = 0, y = 0, is_beacon = FALSE, scanner = 1))
+
+plot(x,y, xlim = c(-2000, 2500), ylim = c(-2000, 2500))
+points(s0_x, s0_y, pch = 20, cex = 2)
+points(s1_x, s1_y, pch = 20, cex = 2)
+rect(s0_x - 1000, s0_y - 1000, s0_x + 1000, s0_y + 1000)
+rect(s1_x - 1000, s1_y - 1000, s1_x + 1000, s1_y + 1000)
+
+while(length(s) > 1) {
+  print(paste(length(s) - 1, "scanners remain unmatched"))
+  picks <- c(1, 2)
+  ref <- s[[picks[1]]]
+  print(paste("comparing scanner", picks[2], "against reference scanner", picks[1]))
+  for (i in 1:2) {  # for each orientation i
+    com <- s[[picks[2]]]
+    # (apply orientation operation here)
+    for (j in 1:nrow(com)) { # for each j in the comparison set
+      # calculate the coordinates in com with point j as new origin
+      com$x_j <- com$x - com$x[j]
+      com$y_j <- com$y - com$y[j]
+      stopifnot(com$x_j[j] == 0)
+      stopifnot(com$x_j[nrow(com)] == (-com$x[j]))
+      stopifnot(com$y_j[j] == 0)
+      stopifnot(com$y_j[nrow(com)] == (-com$y[j]))
+      for (k in 1:nrow(ref)) {
+        # calculate in com assuming com point j (@ which com$x_j[j] = 0) is ref point k
+        com$x_jk <- com$x_j + ref$x[k]
+        com$y_jk <- com$y_j + ref$y[k]
+        stopifnot(com$x_jk[j] == ref$x[k])
+        stopifnot(com$y_jk[j] == ref$y[k])
+        # having done the translation, see if the points match up
+        within_ref <- which(
+          com$is_beacon &
+          abs(com$x_jk) <= scanner_range &
+          abs(com$y_jk) <= scanner_range
+        )
+        com_matches <- all(
+          com$x_jk[within_ref] %in% ref$x &
+          com$y_jk[within_ref] %in% ref$y
+        )
+        if (length(within_ref) > 12 & com_matches) {
+          print(paste("all reference points matched connecting ref point", k, "and com point", j))
+          add <- com[-within_ref,]
+          add$x <- add$x_jk
+          add$y <- add$y_jk
+          add <- dplyr::select(add, x, y, is_beacon, scanner)
+          s[[picks[1]]] <- dplyr::bind_rows(s[[picks[1]]], add)
+          # having matched the comparison scanner, remove that dataframe from s
+          s <- s[-picks[2]]
+          break()
+        }
+      } # for each point k in reference set
+      if (com_matches) break()
+    } # for each point j in the comparison set
+    if (com_matches) break()
+    print("switching orientation")
+  } # for each orientation i
+} # while some scanners unmatched
+
+out <- s[[1]]
+out[which(!out$is_beacon),]
+out[which(out$scanner == 1),]$x == (s1_x - s0_x)
+out[which(out$scanner == 1),]$y == (s1_y - s0_y)
+
+```
 
 Ok, now to do it in three dimensions...there are 24 orientations to consider? or does that make sense?
+
+```r
+
+
+rm(list = ls())
+
+# 3-d data simulator
+
+s0_x <- sample(-1000:1500, 1)
+s1_x <- s0_x + sample(-500:500, 1)
+s0_y <- sample(-1000:1500, 1)
+s1_y <- s0_y + sample(-500:500, 1)
+s0_z <- sample(-1000:1500, 1)
+s1_z <- s0_z + sample(-500:500, 1)
+scanner_range <- 1000
+
+s <- list()
+x <- sample(-1000:1500, 400)
+y <- sample(-1000:1500, 400)
+z <- sample(-1000:1500, 400)
+hits <- which(abs(x - s0_x) <= scanner_range & abs(y - s0_y) <= scanner_range & abs(z - s0_z) <= scanner_range)
+s[[1]] <- data.frame(
+  x = x[hits] - s0_x,
+  y = y[hits] - s0_y,
+  z = z[hits] - s0_z
+)
+hits <- which(abs(x - s1_x) <= scanner_range & abs(y - s1_y) <= scanner_range & abs(z - s1_z) <= scanner_range)
+s[[2]] <- data.frame(
+  x = x[hits] - s1_x,
+  y = y[hits] - s1_y,
+  z = z[hits] - s1_z
+)
+s[[1]]$is_beacon <- TRUE
+s[[2]]$is_beacon <- TRUE
+s[[1]] <- dplyr::bind_rows(s[[1]], list(x = 0, y = 0, z = 0, is_beacon = FALSE, scanner = 0))
+s[[2]] <- dplyr::bind_rows(s[[2]], list(x = 0, y = 0, z = 0, is_beacon = FALSE, scanner = 1))
+
+while(length(s) > 1) {
+  print(paste(length(s) - 1, "scanners remain unmatched"))
+  picks <- c(1, 2)
+  ref <- s[[picks[1]]]
+  print(paste("comparing scanner", picks[2], "against reference scanner", picks[1]))
+  for (i in 1:2) {  # for each orientation i
+    com <- s[[picks[2]]]
+    # (apply orientation operation here)
+    for (j in 1:nrow(com)) { # for each j in the comparison set
+      # calculate the coordinates in com with point j as new origin
+      com$x_j <- com$x - com$x[j]
+      com$y_j <- com$y - com$y[j]
+      com$z_j <- com$z - com$z[j]
+      stopifnot(com$x_j[j] == 0)
+      stopifnot(com$x_j[nrow(com)] == (-com$x[j]))
+      stopifnot(com$y_j[j] == 0)
+      stopifnot(com$y_j[nrow(com)] == (-com$y[j]))
+      stopifnot(com$z_j[j] == 0)
+      stopifnot(com$z_j[nrow(com)] == (-com$z[j]))
+      for (k in 1:nrow(ref)) {
+        # calculate in com assuming com point j (@ which com$x_j[j] = 0) is ref point k
+        com$x_jk <- com$x_j + ref$x[k]
+        com$y_jk <- com$y_j + ref$y[k]
+        com$z_jk <- com$z_j + ref$z[k]
+        stopifnot(com$x_jk[j] == ref$x[k])
+        stopifnot(com$y_jk[j] == ref$y[k])
+        stopifnot(com$z_jk[j] == ref$z[k])
+        # having done the translation, see if the points match up
+        within_ref <- which(
+          com$is_beacon &
+          abs(com$x_jk) <= scanner_range &
+          abs(com$y_jk) <= scanner_range &
+          abs(com$z_jk) <= scanner_range
+        )
+        com_matches <- all(
+          com$x_jk[within_ref] %in% ref$x &
+          com$y_jk[within_ref] %in% ref$y &
+          com$z_jk[within_ref] %in% ref$z
+        )
+        if (length(within_ref) > 12 & com_matches) {
+          print(paste("all reference points matched connecting ref point", k, "and com point", j))
+          add <- com[-within_ref,]
+          add$x <- add$x_jk
+          add$y <- add$y_jk
+          add$z <- add$z_jk
+          add <- dplyr::select(add, x, y, z, is_beacon, scanner)
+          s[[picks[1]]] <- dplyr::bind_rows(s[[picks[1]]], add)
+          # having matched the comparison scanner, remove that dataframe from s
+          s <- s[-picks[2]]
+          break()
+        }
+      } # for each point k in reference set
+      if (com_matches) break()
+    } # for each point j in the comparison set
+    if (com_matches) break()
+    print("switching orientation")
+  } # for each orientation i
+} # while some scanners unmatched
+
+out <- s[[1]]
+out[which(!out$is_beacon),]
+out[which(out$scanner == 1),]$x == (s1_x - s0_x)
+out[which(out$scanner == 1),]$y == (s1_y - s0_y)
+out[which(out$scanner == 1),]$z == (s1_z - s0_z)
+
+# it works!
+
+```
 
 ```r
 
