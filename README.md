@@ -17,11 +17,256 @@ https://www.reddit.com/r/adventofcode/
 - Day 9 [also using igraph](https://twitter.com/rappa753/status/1468876602016735233)
 - Day 10 [using regmatches](https://twitter.com/TeaStats/status/1469239054625648645)
 - Day 14 [animation](https://twitter.com/nbardiuk/status/1470761538969645067)
+- Day 18 https://twitter.com/TeaStats/status/1472276208519983112
+
+
+# Day 19: Beacon Scanner
+
+https://adventofcode.com/2021/day/19
+
+Scanners can detect any nearby beacons *relative* to their position, where nearby means <= 1000 m in x,y,z space. Scanners cannot detect other scanners and we do not know the absolute position of each scanner. Further, the scanners do not know their relative orientations either, except that they are pointed along an axis (so 24 different possible orientations)
+
+Dataset structure and notation: each of the five? scannners exist in a list of dataframes called `s`, with coordinate columns `x`, `y`, `z` for all beacons and [0, 0, 0] for the scanner itself (add this if not present). We will be comparing coordinates between pairs of dataframes, so one of them is "reference" and the other "comparison", and the coordinates of the other one will be translated into a new "candidate" x,y,z space (details in the algorithm), `xc`, `yc`, `zc`. When we have a match between our reference scanner and comparison scanner, we add the comparison scanner's the location relative to the reference scanner into the reference scanner dataframe, as well as any additional coordinates not present already in the reference dataframe.
+
+Here's an algorithm to do this:
+while there is more than one data frame in the list `s`....
+1. pick a reference and a comparison data frame
+2. pick the 24 most distant beacons in the comparison dataframe (the problem says you're guaranteed to find 12 overlapping in SOME reference-comparison pairs, but we don't know which 12, so might as well go bigger)
+3. for each possible orientation, for each of the distant beacons in candidate, for each beacon in reference, calculate all locations in the comparison dataframe (including both the beacons and the comparison scanner itself) and store those as the candidate `cx`, `cy` and `cz`
+4. if all candidate beacons that are within 1000m of the reference scanner are also present in the reference dataframe in exactly the same position, AND all reference beacons that are with 1000m of the candidate scanner are also present in the candidate dataframe in exactly the same positions, we have a *match*, so stop the for-loop early.
+5. if a match is found, identify the coordinates that are not present in the reference dataframe but in the comparison dataframe and add those to the reference dataframe coordinates, bringing in `cx`, `cy` and `cz` (make sure this includes the comparison scanner as well, annotated as such). then remove the "reference" dataframe from the list
+
+the while loop will repeat this algorithm until all coordinates have been absorbed into one data frame, at which point we've solved part 1
+
+let's test this out in just one dimension...
+
+-> probably you can get a match by just checkng the most extreme points on *both* scanners, not every point!
+
+```r
+
+rm(list = ls())
+
+s0_x <- sample(-1000:1500, 1)
+s1_x <- s0_x + sample(-500:500, 1)
+scanner_range <- 1000
+reverse <- sample(c(0, 1), 1)
+
+s <- list()
+x <- sample(-1000:1500, 400)
+s[[1]] <- data.frame(
+  x = x[which(abs(x - s0_x) <= scanner_range)] - s0_x
+)
+s[[2]] <- data.frame(
+  x = x[which(abs(x - s1_x) <= scanner_range)] - s1_x
+)
+s[[2]]$x <- s[[2]]$x * (-1)^reverse
+s[[1]]$is_beacon <- TRUE
+s[[2]]$is_beacon <- TRUE
+s[[1]] <- dplyr::bind_rows(s[[1]], list(x = 0, is_beacon = FALSE, scanner = 0))
+s[[2]] <- dplyr::bind_rows(s[[2]], list(x = 0, is_beacon = FALSE, scanner = 1))
+
+# get some test points
+# j <- sample(which((s[[2]]$x + (s1_x - s0_x)) %in% s[[1]]$x), 1)
+# k <- which(s[[1]]$x == (s[[2]][j,]$x + (s1_x - s0_x)))
+
+while(length(s) > 1) {
+  print(paste(length(s) - 1, "scanners remain unmatched"))
+  picks <- c(1, 2)
+  ref <- s[[picks[1]]]
+  print(paste("comparing scanner", picks[2], "against reference scanner", picks[1]))
+  for (i in 1:2) {  # for each orientation i
+    com <- s[[picks[2]]]
+    com$x <- com$x * (-1)^(i - 1)
+    for (j in 1:nrow(com)) { # for each j in the comparison set
+      # calculate the coordinates in com with point j as new origin
+      com$x_j <- com$x - com$x[j]
+      stopifnot(com$x_j[j] == 0)
+      stopifnot(com$x_j[nrow(com)] == (-com$x[j]))
+      for (k in 1:nrow(ref)) {
+        # calculate in com assuming com point j (@ which com$x_j[j] = 0) is ref point k
+        com$x_jk <- com$x_j + ref$x[k]
+        stopifnot(com$x_jk[j] == ref$x[k])
+        # having done the translation, see if the points match up
+        within_ref <- which(com$is_beacon & abs(com$x_jk) <= scanner_range)
+        com_matches <- all(
+          com$x_jk[within_ref] %in% ref$x
+        )
+        # calculate in ref assuming com point j (@ which com$x_j[j] = 0) is ref point k
+        # ref$x_kj <- ref$x + (com$x[j] - ref$x[k])
+        # # having done the translation, see if the points match up
+        # within_com <- which(ref$is_beacon & abs(ref$x_kj) <= scanner_range)
+        # com_matches <- all(
+        #   com$x_jk[within_ref] %in% ref$x
+        # )
+        if (length(within_ref) > 12 & com_matches) {
+          print(paste("all reference points matched connecting ref point", k, "and com point", j))
+          add <- com[-within_ref,]
+          add$x <- add$x_jk
+          add <- dplyr::select(add, x, is_beacon, scanner)
+          s[[picks[1]]] <- dplyr::bind_rows(s[[picks[1]]], add)
+          # having matched the comparison scanner, remove that dataframe from s
+          s <- s[-picks[2]]
+          break()
+        }
+      } # for each point k in reference set
+      if (com_matches) break()
+    } # for each point j in the comparison set
+    if (com_matches) break()
+    print("switching orientation")
+  } # for each orientation i
+} # while some scanners unmatched
+
+out <- s[[1]]
+out[which(!out$is_beacon),]
+out[which(out$scanner == 1),]$x == (s1_x - s0_x)
+
+```
+
+We have mastered the single dimensional version of the problem!
+
+Now let's modify to do it in two dimensions...there are 8 orientations to consider
+
+```
+
+
+```
+
+
+
+```r
+
+# break() tests
+
+A <- matrix(NA, nrow = 10, ncol = 10)
+for (i in 1:10) {
+  for (j in 1:10) {
+    if ((i * j) > 70) break()
+    A[i, j] <- i * j
+  }
+  if ((i * j) > 70) break()
+  print(i)
+}
+
+```
+
+
+Ok, now to do it in three dimensions...there are 24 orientations to consider? or does that make sense?
+
+```r
+
+raw <- readLines("day19_input_test.txt")
+scanner_lines <- grep("scanner", raw)
+
+n_scanners <- length(scanner_lines)
+s <- vector("list", n_scanners)
+
+for (i in 1:n_scanners) {
+  if (i < n_scanners) {
+    add_raw <- raw[(scanner_lines[i] + 1):(scanner_lines[i + 1] - 1)]
+  } else {
+    add_raw <- raw[(scanner_lines[i] + 1):length(raw)]
+  }
+  drop <- which(add_raw == "")
+  if (length(drop) > 0) add_raw <- add_raw[-drop]
+  add <- data.frame(
+    x = rep(NA, length(add_raw) + 1),
+    y = rep(NA, length(add_raw) + 1),
+    z = rep(NA, length(add_raw) + 1)
+  )
+  add[1,] <- c(0, 0, 0)
+  for (j in 1:length(add_raw)) {
+    add[j + 1,] <- as.numeric(strsplit(add_raw[j], ",")[[1]])
+  }
+  add$is_beacon <- c(FALSE, rep(TRUE, nrow(add) - 1))
+  add$scanner <- NA
+  add$scanner[1] <- (i - 1)
+  s[[i]] <- add
+}
+
+# data frames are loaded...but we need to add our 0,0,0 entries for each one!
+
+```
+
+
+
+Why is goto harmful?
+https://www.youtube.com/watch?v=FGAWniPGKjc
+goto is *unavoidable* in assembly language, it's exactly how processors work.
+its doing it in *higher-level* languages that is the problem
+*why* you are going-to is not clear. in higher-level languages, control flow statements like 'while' or 'for' provide much clearer reasons for the execution
+
+
+
+
+# Day 18: Snailfish
+
+https://adventofcode.com/2021/day/18
+
+Snailfish numbers are numbered lists of two elements. Each element can be a digit from 0 to 9, or another list of two elements. There are three operations we perform on snailfish numbers:
+
+- *add*: The addition of two snailfish numbers involves combining them into a new list of two elements, with the first snailfish number being the first element, and the second number in the operation being the second element.
+- *split*: a digit element within a snailfish number is replaced by a pair. The left element of the pair is the digit divided by two and rounded down. The right element of the pair is the digit divided by two and rounded up.
+- *explode*: when a snailfish number explodes, the first element is added arithmetically to the last digit in the nesting, and the second digit is arithmetically added to the next digit in the nesting. If there is no such adjacent digit, the digit simply disappears.
+
+There's an additional operation called *reduce* that combines the last two operations in a while-loop. To "reduce" a snailfish number, repeatedly do the first action on this list that applies:
+- If any pair is nested inside four pairs, the leftmost such pair "explodes"
+- If any regular number is 10 or greater, the leftmost such regular number "splits".
+
+Using lists:
+
+```r
+
+a <- list(5, 7)
+b <- list(10, 12)
+c <- list(a, b) # the 'add' operation is just the list() operator
+d <- list(a, c, b)
+
+split <- function(value) {
+  list(floor(value/2), ceiling(value/2))
+}
+
+# how to traverse the nested list quickly tho? like, if i have a list, how do i specify additional argument(s) to locate the specific address?
+
+
+
+d[[2]][[2]]
+
+reduce <- function(x)
+
+```
+
+Using strings?
+
+```r
+
+add_snails <- function(a, b) paste0("[", a, ",", b, "]")
+add_snails("[1,2]", "[[3,4],5]") == "[[1,2],[[3,4],5]]"
+
+split_snail <- function(a, pointer) {
+  value_chr <- substr(a, pointer, pointer)
+  stopifnot (!is.na(as.numeric(value_chr)))
+  value <- as.numeric(value_chr)
+  add <- paste0("[", floor(value/2), ",", ceiling(value/2), "]")
+  out <- paste0(substr(a, 1, (pointer - 1)), add, substr(a, (pointer + 1), nchar(a)))
+  return(out)
+}
+
+# i have no idea how to detect if a pair is "nested inside four pairs". What could I possibly do here?
+
+x <- "[[[[[9,8],1],2],3],4]"
+
+```
+
+
+
+
 
 
 
 
 # Day 17: Trick Shot
+
+https://adventofcode.com/2021/day/17
 
 Here we're tasked with calculating a ballistic trajectory in two dimensions, trying to hit a rectangular target area. At each time step, our probe's x-position updates by its x-velocity at the previous timestep, so $x_{t+1} = x_t + v_t$, and its' y-position updates the same. The probe begins at coordinates 0,0 and its velocity in both dimensions decreases by one each timestep from the initial values. The x-velocity slows to 0 and stops (due to drag), but the y-velocity continues to decrement by 1 without end (due to gravity). The probe has successfully reached the target if its coordinates are within the target boundaries at the end of a discrete time step - speeding through the target to the other side doesn't count.
 
@@ -76,6 +321,8 @@ sum(dat$hit) # 996 paths in full case
 
 
 # Day 16: Packet Decoder
+
+https://adventofcode.com/2021/day/16
 
 We are to decode nested packets from a hexadecimal bitstring. Each packet begins with three bits that encode the *packet version*. The next three bits encode the *packet type ID*. The next set of bits in the packet depends on the packet type ID, either holding a big-endian number called the *literal value* or holding additional packets nested within the packet. The outermost packet may also end with trailing zeros, which are to be ignored.
 
@@ -226,6 +473,8 @@ dat$evaluation == 902198718880 # part two
 
 
 # Day 15: Chiton
+
+https://adventofcode.com/2021/day/15
 
 Given a two-dimensional array of integers, find the up-down-left-right path that has the lowest total value. You start in the top-left cell, and you don't count that cell's value in your total score, but every other cell along the path is added together to get the total risk score.
 
