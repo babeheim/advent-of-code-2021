@@ -71,6 +71,17 @@ s[[2]] <- dplyr::bind_rows(s[[2]], list(x = 0, is_beacon = FALSE, scanner = 1))
 # j <- sample(which((s[[2]]$x + (s1_x - s0_x)) %in% s[[1]]$x), 1)
 # k <- which(s[[1]]$x == (s[[2]][j,]$x + (s1_x - s0_x)))
 
+apply_transform <- function(data, mirror = FALSE) {
+  if (mirror) data$x <- -1 * data$x
+  return(data)
+}
+
+orientations <- data.frame(
+  mirror = c(FALSE, TRUE)
+)
+
+# orientations[i,]$mirror doesnt work!
+
 # matching loop
 
 match_scanners <- function(s) {
@@ -79,9 +90,9 @@ match_scanners <- function(s) {
     picks <- c(1, 2)
     ref <- s[[picks[1]]]
     print(paste("comparing scanner", picks[2], "against reference scanner", picks[1]))
-    for (i in 1:2) {  # for each orientation i
+    for (i in 1:nrow(orientations)) {  # for each orientation i
       com <- s[[picks[2]]]
-      com$x <- com$x * (-1)^(i - 1)
+      com <- apply_transform(com, mirror = orientations$mirror[i])
       for (j in 1:nrow(com)) { # for each j in the comparison set
         # calculate the coordinates in com with point j as new origin
         com$x_j <- com$x - com$x[j]
@@ -162,18 +173,6 @@ There are 4 * 2 = 8 unique orientations for any x-y space, defined by the 4 rota
 
 ```r
 
-A <- matrix(c(0, -1, 1, 0), byrow = TRUE, ncol = 2)
-M <- matrix(c(1, 0, 0, -1), byrow = TRUE, ncol = 2)
-
-apply_transform <- function(data, n_turns = 0, mirror = FALSE) {
-  if (n_turns > 0) {
-    for (i in 1:n_turns) {
-      data <- t(A %*% t(data))
-    }
-  }
-  if (mirror) data <- t(M %*% t(data))
-  return(data)
-}
 
 xy_prime <- apply_transform(xy, 4, FALSE)
 
@@ -206,6 +205,21 @@ Now we look at the 2-d version
 
 rm(list = ls())
 
+apply_transform <- function(data, n_turns = 0, mirror = FALSE) {
+  A <- matrix(c(0, -1, 1, 0), byrow = TRUE, ncol = 2)
+  M <- matrix(c(1, 0, 0, -1), byrow = TRUE, ncol = 2)
+  xy_data <- as.matrix(data[,c("x", "y")]) 
+  if (n_turns > 0) {
+    for (i in 1:n_turns) {
+      xy_data <- t(A %*% t(xy_data))
+    }
+  }
+  if (mirror) xy_data <- t(M %*% t(xy_data))
+  data$x <- xy_data[,1]
+  data$y <- xy_data[,2]
+  return(data)
+}
+
 # 2-d data simulator
 
 s0_x <- sample(-1000:1500, 1)
@@ -232,20 +246,25 @@ s[[2]]$is_beacon <- TRUE
 s[[1]] <- dplyr::bind_rows(s[[1]], list(x = 0, y = 0, is_beacon = FALSE, scanner = 0))
 s[[2]] <- dplyr::bind_rows(s[[2]], list(x = 0, y = 0, is_beacon = FALSE, scanner = 1))
 
+s[[2]] <- apply_transform(s[[2]], n_turns = 2)
+
 plot(x,y, xlim = c(-2000, 2500), ylim = c(-2000, 2500))
 points(s0_x, s0_y, pch = 20, cex = 2)
 points(s1_x, s1_y, pch = 20, cex = 2)
 rect(s0_x - 1000, s0_y - 1000, s0_x + 1000, s0_y + 1000)
 rect(s1_x - 1000, s1_y - 1000, s1_x + 1000, s1_y + 1000)
 
+orientations <- expand.grid(n_turns = 0:3, mirror = FALSE:TRUE)
+
 while(length(s) > 1) {
   print(paste(length(s) - 1, "scanners remain unmatched"))
   picks <- c(1, 2)
   ref <- s[[picks[1]]]
   print(paste("comparing scanner", picks[2], "against reference scanner", picks[1]))
-  for (i in 1:2) {  # for each orientation i
+  for (i in 1:nrow(orientations)) {  # for each orientation i
     com <- s[[picks[2]]]
-    # (apply orientation operation here)
+    com <- apply_transform(com, n_turns = orientations$n_turns[i],
+      mirror = orientations$mirror[i])
     for (j in 1:nrow(com)) { # for each j in the comparison set
       # calculate the coordinates in com with point j as new origin
       com$x_j <- com$x - com$x[j]
