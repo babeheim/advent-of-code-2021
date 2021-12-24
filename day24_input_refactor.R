@@ -15,7 +15,7 @@ y <- prod(y, 0)
 y <- sum(y, w)
 y <- sum(y, 13)
 y <- prod(y, x)
-z <- sum(z, y)
+z <- sum(z, y) # (up to here, its always: w <- ins[1], x <- 1, y <- ins[1] + 13, z <- ins[1] + 13)
 w <- ins[2]
 x <- prod(x, 0)
 x <- sum(x, z)
@@ -233,9 +233,17 @@ y <- sum(y, 14)
 y <- prod(y, x)
 z <- sum(z, y)
 w <- ins[14]
-x <- (z %% 26L - 5L) != ins[14]
-z <- `%/%`(z, 26L)
-y <- (25L * !((x %% 26L) - 5L == ins[14])) + 1L #  this is either 26 or 1!
+x <- prod(x, 0)
+x <- sum(x, z)
+x <- `%%`(x, 26)
+z <- `%/%`(z, 26)
+x <- sum(x, -5)
+x <- `==`(x, w)
+x <- `==`(x, 0)
+y <- prod(y, 0)
+y <- sum(y, 25)
+y <- prod(y, x)
+y <- sum(y, 1)
 z <- prod(z, y)
-y <- (ins[14] + 9L) * x # where x is 0 or 1...so y is 0 or y is ins[14] + 9
+y <- (w + 9L) * x
 z <- sum(z, y) # VALID if y = z = 0, OR y = -z
