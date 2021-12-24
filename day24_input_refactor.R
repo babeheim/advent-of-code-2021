@@ -16,6 +16,7 @@ y <- sum(y, w)
 y <- sum(y, 13)
 y <- prod(y, x)
 z <- sum(z, y) # (up to here, its always: w <- ins[1], x <- 1, y <- ins[1] + 13, z <- ins[1] + 13)
+
 w <- ins[2]
 x <- prod(x, 0)
 x <- sum(x, z)
@@ -34,6 +35,7 @@ y <- sum(y, w)
 y <- sum(y, 10)
 y <- prod(y, x)
 z <- sum(z, y) # z <- z + (ins[2] + 10) * x, big?. so there are explicit formulas for x, y and z up to this point, and we read in ins[3] next...
+
 w <- ins[3]
 x <- prod(x, 0)
 x <- sum(x, z)
@@ -52,6 +54,7 @@ y <- sum(y, w)
 y <- sum(y, 5)
 y <- prod(y, x)
 z <- sum(z, y)
+
 w <- ins[4]
 x <- prod(x, 0)
 x <- sum(x, z)
@@ -70,6 +73,7 @@ y <- sum(y, w)
 y <- sum(y, 14)
 y <- prod(y, x)
 z <- sum(z, y)
+
 w <- ins[5]
 x <- prod(x, 0)
 x <- sum(x, z)
@@ -88,6 +92,7 @@ y <- sum(y, w)
 y <- sum(y, 5)
 y <- prod(y, x)
 z <- sum(z, y)
+
 w <- ins[6]
 x <- prod(x, 0)
 x <- sum(x, z)
@@ -106,6 +111,7 @@ y <- sum(y, w)
 y <- sum(y, 15)
 y <- prod(y, x)
 z <- sum(z, y)
+
 w <- ins[7]
 x <- prod(x, 0)
 x <- sum(x, z)
@@ -124,6 +130,7 @@ y <- sum(y, w)
 y <- sum(y, 4)
 y <- prod(y, x)
 z <- sum(z, y)
+
 w <- ins[8]
 x <- prod(x, 0)
 x <- sum(x, z)
@@ -142,6 +149,7 @@ y <- sum(y, w)
 y <- sum(y, 11)
 y <- prod(y, x)
 z <- sum(z, y)
+
 w <- ins[9]
 x <- prod(x, 0)
 x <- sum(x, z)
@@ -160,6 +168,7 @@ y <- sum(y, w)
 y <- sum(y, 1)
 y <- prod(y, x)
 z <- sum(z, y)
+
 w <- ins[10]
 x <- prod(x, 0)
 x <- sum(x, z)
@@ -178,63 +187,19 @@ y <- sum(y, w)
 y <- sum(y, 15)
 y <- prod(y, x)
 z <- sum(z, y)
+
 w <- ins[11]
-x <- prod(x, 0)
-x <- sum(x, z)
-x <- `%%`(x, 26)
-z <- `%/%`(z, 26)
-x <- sum(x, -10)
-x <- `==`(x, w)
-x <- `==`(x, 0)
-y <- prod(y, 0)
-y <- sum(y, 25)
-y <- prod(y, x)
-y <- sum(y, 1)
-z <- prod(z, y)
-y <- prod(y, 0)
-y <- sum(y, w)
-y <- sum(y, 12)
-y <- prod(y, x)
-z <- sum(z, y)
+x <- as.integer(!((z %% 26L) - 10L == w))
+z <- ((z %/% 26L) * (25L * x + 1L)) + ((w + 12L) * x)
+
 w <- ins[12]
-x <- prod(x, 0)
-x <- sum(x, z)
-x <- `%%`(x, 26)
-z <- `%/%`(z, 26)
-x <- sum(x, -12)
-x <- `==`(x, w)
-x <- `==`(x, 0)
-y <- prod(y, 0)
-y <- sum(y, 25)
-y <- prod(y, x)
-y <- sum(y, 1)
-z <- prod(z, y)
-y <- prod(y, 0)
-y <- sum(y, w)
-y <- sum(y, 8)
-y <- prod(y, x)
-z <- sum(z, y)
+x <- as.integer(!((z %% 26L) - 12L == w))
+z <- ((z %/% 26L) * (25L * x + 1L)) + ((w + 8L) * x)
+
 w <- ins[13]
-x <- prod(x, 0)
-x <- sum(x, z)
-x <- `%%`(x, 26)
-z <- `%/%`(z, 26)
-x <- sum(x, -3)
-x <- `==`(x, w)
-x <- `==`(x, 0)
-y <- 25L * x + 1L
-z <- prod(z, y)
-y <- (w + 14L) * x
-z <- sum(z, y)
+x <- as.integer(!((z %% 26L) - 3L == w))
+z <- ((z %/% 26L) * (25L * x + 1L)) + ((w + 14L) * x)
+
 w <- ins[14]
-x <- prod(x, 0)
-x <- sum(x, z)
-x <- `%%`(x, 26)
-z <- `%/%`(z, 26)
-x <- sum(x, -5)
-x <- `==`(x, w)
-x <- `==`(x, 0)
-y <- 25L * x + 1L
-z <- prod(z, y)
-y <- (w + 9L) * x
-z <- sum(z, y) # VALID if y = z = 0, OR y = -z
+x <- as.integer(!((z %% 26L) - 5L == w)) # is ins[14] NOT equal to (five less than the remainder of z/26), which is inside [-5, 20].
+z <- ((z %/% 26L) * (25L * x + 1L)) + ((w + 9L) * x) # VALID if y = z = 0, OR y = -z
