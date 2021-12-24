@@ -33,7 +33,7 @@ y <- prod(y, 0)
 y <- sum(y, w)
 y <- sum(y, 10)
 y <- prod(y, x)
-z <- sum(z, y)
+z <- sum(z, y) # z <- z + (ins[2] + 10) * x, big?. so there are explicit formulas for x, y and z up to this point, and we read in ins[3] next...
 w <- ins[3]
 x <- prod(x, 0)
 x <- sum(x, z)
@@ -243,10 +243,11 @@ x <- `==`(x, 0)
 y <- prod(y, 0)
 y <- sum(y, 25)
 y <- prod(y, x)
-y <- sum(y, 1)
+y <- sum(y, 1) # y <- (25 * !((x %% 26) - 5 == ins[14])) + 1 ... this is either 26 or 1!
 z <- prod(z, y)
-y <- prod(y, 0)
-y <- sum(y, w)
-y <- sum(y, 9)
-y <- prod(y, x)
-z <- sum(z, y)
+# y <- prod(y, 0)
+# y <- sum(y, w)
+# y <- sum(y, 9)
+# y <- prod(y, x) # y <- (ins[14] + 9) * x, where x is 0 or 1...so y is 0 or y is ins[14] + 9
+y <- (ins[14] + 9) * x
+z <- sum(z, y) # VALID if y = z = 0, OR y = -z
