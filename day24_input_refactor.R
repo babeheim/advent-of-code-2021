@@ -222,15 +222,9 @@ z <- `%/%`(z, 26)
 x <- sum(x, -3)
 x <- `==`(x, w)
 x <- `==`(x, 0)
-y <- prod(y, 0)
-y <- sum(y, 25)
-y <- prod(y, x)
-y <- sum(y, 1)
+y <- 25L * x + 1L
 z <- prod(z, y)
-y <- prod(y, 0)
-y <- sum(y, w)
-y <- sum(y, 14)
-y <- prod(y, x)
+y <- (w + 14L) * x
 z <- sum(z, y)
 w <- ins[14]
 x <- prod(x, 0)
@@ -240,10 +234,7 @@ z <- `%/%`(z, 26)
 x <- sum(x, -5)
 x <- `==`(x, w)
 x <- `==`(x, 0)
-y <- prod(y, 0)
-y <- sum(y, 25)
-y <- prod(y, x)
-y <- sum(y, 1)
+y <- 25L * x + 1L
 z <- prod(z, y)
 y <- (w + 9L) * x
 z <- sum(z, y) # VALID if y = z = 0, OR y = -z
