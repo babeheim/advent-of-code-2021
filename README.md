@@ -654,8 +654,6 @@ We just need to know the cumulative number of moves each player gets by the end 
 
 ```r
 
-rm(list = ls())
-
 # arithmetic using the 100-sided 'deterministic dice'
 m <- function(i) 3 * (3 * i - 1) # moves rolled on turn i
 s <- function(i) (3/2) * i * (3 * i + 1) # total number of moves up to and including turn i
@@ -723,8 +721,6 @@ res$p2_total_score == 1007
 res$target == 598416
 
 ```
-
-## Part Two
 
 Ok, now we use a three-sided "Dirac die", and must explore *all possible outcomes of each roll of the die*. Here a game ends when a player's score reaches 21. Here I solved it by creating an array that indexes five properties to define a game state - the board positions and scores, and the turn number, and then counted timelines iteratively.
 
@@ -1528,7 +1524,6 @@ I solved Part Two by brute force, exploring every combination of velocities with
 
 At this point, it's easy to brute force, and we're done.
 
-
 ```r
 
 test_shot <- function(v0, a, b, c, d) {
@@ -1542,29 +1537,16 @@ test_shot <- function(v0, a, b, c, d) {
   any(a <= x & x <= b & d <= y & y <= c)
 }
 
-a <- 20
-b <- 30
-c <- (-5)
-d <- (-10)
+count_trajectories <- function(a, b, c, d) {
+  v_x_range <- ceiling((sqrt(8 * a + 1) - 1)/2):b
+  v_y_range <- d:(-(d+1))
+  dat <- expand.grid(v_x_range, v_y_range)
+  dat$hit <- apply(dat, 1, test_shot, a, b, c, d)
+  sum(dat$hit)
+}
 
-v_x_range <- ceiling((sqrt(8 * a + 1) - 1)/2):b
-v_y_range <- d:(-(d+1))
-dat <- expand.grid(v_x_range, v_y_range)
-dat$hit <- apply(dat, 1, test_shot, a, b, c, d)
-sum(dat$hit) # 112 paths in test case
-
-a <- 269
-b <- 292
-c <- (-44)
-d <- -68
-
-v_x_range <- ceiling((sqrt(8 * a + 1) - 1)/2):b
-v_y_range <- d:(-(d+1))
-dat <- expand.grid(v_x_range, v_y_range)
-dat$hit <- apply(dat, 1, test_shot, a, b, c, d)
-
-sum(dat$hit) # 996 paths in full case
-
+count_trajectories(20, 30, -5, -10) == 112
+count_trajectories(269, 292, -44, -68) == 996 
 
 ```
 
@@ -1721,7 +1703,6 @@ dat$evaluation == 902198718880 # part two
 
 
 
-
 # Day 15: Chiton
 
 https://adventofcode.com/2021/day/15
@@ -1730,10 +1711,9 @@ Given a two-dimensional array of integers, find the up-down-left-right path that
 
 ```r
 
-calc_least_cost_path <- function(path, use_full = FALSE) {
+calc_least_cost_path <- function(path, use_full = FALSE, verbose = FALSE) {
 
   raw <- readLines(path)
-  diag <- FALSE
 
   # load first tile
   n <- length(raw)
@@ -1768,7 +1748,7 @@ calc_least_cost_path <- function(path, use_full = FALSE) {
   # and the i address is j + (k - 1) * nrow(m)
 
   while (length(i_to_check) > 0) {
-    if (length(i_to_check) %% ((n*m)/100) == 0) print(round(length(i_to_check)/(n*m), 2))
+    if (verbose & length(i_to_check) %% ((n*m)/100) == 0) print(round(length(i_to_check)/(n*m), 2))
     # identify the current minimum-distance entry in dist & discard
     min_i <- i_to_check[which.min(dist[i_to_check])]
     i_to_check <- setdiff(i_to_check, min_i)
@@ -1782,13 +1762,13 @@ calc_least_cost_path <- function(path, use_full = FALSE) {
     if (length(drop) > 0) neighbors_i <- neighbors_i[-drop]
     neighbors_i <- intersect(neighbors_i, i_to_check)
     for (neighbor in neighbors_i) {
-      if (diag) print(paste("evaluating neighbor", neighbor, "of current minimum", min_i))
+      if (verbose) print(paste("evaluating neighbor", neighbor, "of current minimum", min_i))
       if (cost[neighbor] + dist[min_i] < dist[neighbor]) {
         dist[neighbor] <- cost[neighbor] + dist[min_i]
-        if (diag) print(paste("dist to patch", neighbor, "now", dist[neighbor], "via patch", min_i))
+        if (verbose) print(paste("dist to patch", neighbor, "now", dist[neighbor], "via patch", min_i))
         path[[neighbor]] <- c(path[[min_i]], min_i)
       } else {
-        if (diag) print (paste("path to", neighbor, "unchanged"))
+        if (verbose) print (paste("path to", neighbor, "unchanged"))
       }
     }
   }
@@ -1926,9 +1906,6 @@ fold_points <- function(path, n_folds = NULL) {
 nrow(fold_points("day13_input_test.txt", n_folds = 1)) == 17
 nrow(fold_points("day13_input.txt", n_folds = 1)) == 689
 
-x <- fold_points("day13_input.txt", n_folds = 2)
-plot(x)
-
 ```
 
 
@@ -2002,8 +1979,13 @@ map_paths <- function(path, once = TRUE) {
   return(paths)
 }
 
-```
+length(map_paths("day12_input_test.txt")) == 10
+length(map_paths("day12_input.txt")) == 4167
 
+length(map_paths("day12_input_test.txt", once = FALSE)) == 36
+length(map_paths("day12_input.txt", once = FALSE)) == 98441
+
+```
 
 
 
@@ -2938,14 +2920,6 @@ prod(vectors[nrow(vectors),1:2]) == 900 # should be 900
 
 vectors <- text_to_vectors_with_aim("day2_input.txt")
 prod(vectors[nrow(vectors),1:2]) # 1855892637
-
-# plot to compare
-par(mfrow = c(1, 2))
-vectors_bad <- text_to_vectors("day2_input.txt")
-plot(vectors_bad, type = "l", ylim = c(max(vectors_bad[,2]), 0), ylab = "depth", xlab = "x displacement", col = "red", las = 1)
-vectors <- text_to_vectors_with_aim("day2_input.txt")
-plot(vectors, type = "l", ylim = c(max(vectors[,2]), 0), ylab = "depth", xlab = "x displacement", las = 1)
-points(vectors_bad, type = "l", col = "red")
 
 ```
 
