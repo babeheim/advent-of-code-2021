@@ -20,6 +20,874 @@ https://www.reddit.com/r/adventofcode/
 - Day 18 https://twitter.com/TeaStats/status/1472276208519983112
 - Day 19 https://twitter.com/ashbaldry_/status/1472566622535798785
 - Day 19 using linear regression to infer rotation: https://twitter.com/mccorvie/status/1472684849123102720
+- day 24 using an optimizer https://twitter.com/tipadaknife/status/1474450242842017799
+- day 25 in R https://twitter.com/TeaStats/status/1475092918746689541
+
+# Key notes
+
+https://en.wikipedia.org/wiki/Memoization
+https://en.m.wikipedia.org/wiki/Dynamic_programming
+https://en.m.wikipedia.org/wiki/Dijkstra%27s_algorithm
+
+
+# Day 25: Sea Cucumber
+
+https://adventofcode.com/2021/day/25
+
+Every step, the east-facing herd all considers whether there's an open space to the east and, if its free, they all move at once. Then the south-facing herd all considers whether there's an open space to the south and, if its free, they all move at once. It's a toroid so those on the bottom of the map consider the top of the map as their next spot, and those on the far east consider the western-most spot their next spot. The question is, what is the first step on which no sea cucumbers move?
+
+The strategy I think I'll do is a matrix shuffle.
+
+
+```r
+
+A <- "...>>>>>..."
+
+# initalize A_next from turn 0
+A_next <- strsplit(A, "")[[1]]
+
+n_turns <- 10
+
+for (i in seq_len(n_turns)) {
+  A_now <- A_next
+  A_want <- A_now[c(length(A_now), 1:(length(A_now)-1))]
+  works <- which(A_want == ">" & A_now == ".")
+  from <- works - 1L
+  if (any(from == 0L)) from[which(from == 0L)] <- length(A_now)
+  A_next <- A_now
+  A_next[works] <- ">"
+  A_next[from] <- "."
+}
+
+```
+
+Now we just need to do this in two dimensions...
+
+```r
+
+rm(list = ls())
+
+A_raw <- readLines("day25_input.txt")
+A <- matrix(NA, ncol = nchar(A_raw[1]), nrow = length(A_raw))
+for (row in seq_len(length(A_raw))) A[row,] <- strsplit(A_raw[row], "")[[1]]
+
+turn <- 0
+right_works_i <- 1 # dummy values
+down_works_i <- 1 # dummy values
+
+stop_turn <- 1
+
+while(length(right_works_i) > 0 | length(down_works_i) > 0) {
+
+  turn <- turn + 1
+
+  A_propose_right <- A[, c(ncol(A), 1:(ncol(A)-1))]
+  right_works_i <- which(A == "." & A_propose_right == ">")
+  if (length(right_works_i) > 0) {
+    right_works_j <- (right_works_i - 1) %% nrow(A) + 1
+    right_works_k <- (right_works_i - 1) %/% nrow(A) + 1
+    right_from_k <- right_works_k - 1L
+    if (any(right_from_k == 0L)) right_from_k[which(right_from_k == 0L)] <- ncol(A)
+    for (i in seq_along(right_works_i)) {
+      A[right_works_j[i], right_works_k[i]] <- ">"
+      A[right_works_j[i], right_from_k[i]] <- "."
+    }
+    print(paste("shifted", length(right_works_i), "right"))
+  }
+
+  A_propose_down <- A[c(nrow(A), 1:(nrow(A)-1)), ]
+  down_works_i <- which(A == "." & A_propose_down == "v")
+  if (length(down_works_i) > 0) {
+    down_works_j <- (down_works_i - 1) %% nrow(A) + 1
+    down_works_k <- (down_works_i - 1) %/% nrow(A) + 1
+    down_from_j <- down_works_j - 1L
+    if (any(down_from_j == 0L)) down_from_j[which(down_from_j == 0L)] <- nrow(A)
+    for (i in seq_along(down_works_i)) {
+      A[down_works_j[i], down_works_k[i]] <- "v"
+      A[down_from_j[i], down_works_k[i]] <- "."
+    }
+    print(paste("shifted", length(down_works_j), "down"))
+  }
+
+  print(paste("turn", turn, "complete"))
+
+}
+
+# turn == 58 # practice
+turn == 563
+
+
+```
+
+
+
+# Day 24: Arithmetic Logic Unit
+
+https://adventofcode.com/2021/day/24
+
+
+here we code the ALU for holding the 
+
+```r
+
+rm(list = ls())
+
+inp <- function(a, b, reg_list) {
+  stopifnot(a %in% names(reg_list))
+  a_arg <- paste0(a, "=", reg_list[[a]])
+  if (is.integer(b)) {
+    reg_list[[a]] <- b
+    b_arg <- paste0("in=", b)
+  } else {
+    stop("b input is not valid")
+  }
+  reg_list$msg <- paste("writing", b_arg, "to register", a)
+  return(reg_list)
+}
+
+add <- function(a, b, reg_list) {
+  stopifnot(a %in% names(reg_list))
+  a_arg <- paste0(a, "=", reg_list[[a]])
+  if (is.integer(b)) {
+    reg_list[[a]] <- reg_list[[a]] + b
+    b_arg <- paste0("in=", b)
+  } else if (b %in% names(reg_list)) {
+    reg_list[[a]] <- reg_list[[a]] + reg_list[[b]]
+    b_arg <- paste0(b, "=", reg_list[[b]])
+  } else {
+    stop("b input is not valid")
+  }
+  reg_list$msg <- paste("adding", a_arg, "and", b_arg)
+  return(reg_list)
+}
+
+mul <- function(a, b, reg_list) {
+  stopifnot(a %in% names(reg_list))
+  a_arg <- paste0(a, "=", reg_list[[a]])
+  if (is.integer(b)) {
+    reg_list[[a]] <- reg_list[[a]] * b
+    b_arg <- paste0("in=", b)
+  } else if (b %in% names(reg_list)) {
+    reg_list[[a]] <- reg_list[[a]] * reg_list[[b]]
+    b_arg <- paste0(b, "=", reg_list[[b]])
+  } else {
+    stop("b input is not valid")
+  }
+  reg_list$msg <- paste("multiplying", a_arg, "and", b_arg)
+  return(reg_list)
+}
+
+div <- function(a, b, reg_list) {
+  stopifnot(a %in% names(reg_list))
+  if (b == 0L) stop("cannot divide by zero!")
+  a_arg <- paste0(a, "=", reg_list[[a]])
+  if (is.integer(b)) {
+    reg_list[[a]] <- reg_list[[a]] %/% b
+    b_arg <- paste0("in=", b)
+  } else if (b %in% names(reg_list)) {
+    reg_list[[a]] <- reg_list[[a]] %/% reg_list[[b]]
+    b_arg <- paste0(b, "=", reg_list[[b]])
+  } else {
+    stop("b input is not valid")
+  }
+  reg_list$msg <- paste("dividing", a_arg, "by", b_arg)
+  return(reg_list)
+}
+
+mod <- function(a, b, reg_list) {
+  stopifnot(a %in% names(reg_list))
+  if (a < 0L) stop("cannot modulo a negative dividend!")
+  if (b == 0L) stop("cannot modulo by zero!")
+  a_arg <- paste0(a, "=", reg_list[[a]])
+  if (is.integer(b)) {
+    reg_list[[a]] <- reg_list[[a]] %% b
+    b_arg <- paste0("in=", b)
+  } else if (b %in% names(reg_list)) {
+    reg_list[[a]] <- reg_list[[a]] %% reg_list[[b]]
+    b_arg <- paste0(b, "=", reg_list[[b]])
+  } else {
+    stop("b input is not valid")
+  }
+  reg_list$msg <- paste("modulo", a_arg, "by", b_arg)
+  return(reg_list)
+}
+
+eql <- function(a, b, reg_list) {
+  stopifnot(a %in% names(reg_list))
+  a_arg <- paste0(a, "=", reg_list[[a]])
+  if (is.integer(b)) {
+    reg_list[[a]] <- as.integer(reg_list[[a]] == b)
+    b_arg <- paste0("in=", b)
+  } else if (b %in% names(reg_list)) {
+    reg_list[[a]] <- as.integer(reg_list[[a]] == reg_list[[b]])
+    b_arg <- paste0(b, "=", reg_list[[b]])
+  } else {
+    stop("b input is not valid")
+  }
+  reg_list$msg <- paste("testing equality between", a_arg, "and", b_arg)
+  return(reg_list)
+}
+
+
+alu <- list(inp = inp, add = add, mul = mul, div = div, mod = mod, eql = eql)
+
+run_line <- function(line, reg_list, input = NULL) { 
+  l <- as.list(strsplit(line, " ")[[1]])
+  if (l[[1]] == "inp") {
+    if (!is.null(input)) {
+      l[[3]] <- input
+    } else {
+      stop("inp input missing!")
+    }
+  }
+  if (!(l[[3]] %in% c("w", "x", "y", "z"))) {
+    l[[3]] <- as.integer(l[[3]])
+    stopifnot(!is.na(l[[3]]))
+  }
+  out <- alu[[l[[1]]]](l[[2]], l[[3]], reg_list)
+  return(out)
+}
+
+regs <- list(w = 0, x = 0, y = 0, z = 0)
+eql("w", 3L, regs)
+eql("w", "x", regs)
+
+regs <- list(w = 0, x = 0, y = 0, z = 0)
+regs <- inp("w", 5L, regs)
+regs <- inp("x", 5L, regs)
+regs <- mul("w", "x", regs)
+regs$w == 25L
+
+regs <- list(w = 0, x = 0, y = 0, z = 0)
+regs <- inp("w", 5L, regs)
+regs <- mul("w", -1L, regs)
+regs$w == -5L
+
+regs <- list(w = 0, x = 0, y = 0, z = 0)
+regs <- run_line("inp w", regs, 15L)
+regs <- run_line("add z w", regs)
+regs <- run_line("mod z 2", regs)
+regs <- run_line("div w 2", regs)
+regs <- run_line("add y w", regs)
+regs <- run_line("mod y 2", regs)
+regs <- run_line("div w 2", regs)
+regs <- run_line("add x w", regs)
+regs <- run_line("mod x 2", regs)
+regs <- run_line("div w 2", regs)
+regs <- run_line("mod w 2", regs)
+
+run_program <- function(path, inputs) {
+  lines <- readLines(path)
+  input_list <- vector("list", length(lines))
+  inp_lines <- grep("inp", lines)
+  stopifnot(length(inputs) == length(inp_lines))
+  for (i in seq_along(inp_lines)) {
+    input_list[[inp_lines[i]]] <- inputs[i]
+  }
+  regs <- list(w = 0, x = 0, y = 0, z = 0)
+  log <- vector("list", length(lines))
+  log[[1]] <- regs
+  for (l in seq_along(lines)) {
+    regs <- run_line(lines[l], regs, input_list[[l]])
+    log[[l]] <- regs
+  }
+  log <- rbind(log)
+  log <- dplyr::bind_rows(log)
+  log <- dplyr::select(log, msg, w, x, y, z)
+  log <- as.data.frame(log)
+  return(log)
+}
+
+asm_program <- function(path, outpath) {
+  lines <- readLines(path)
+  inp_lines <- grep("inp", lines)
+  inp_vars <- gsub("inp ", "", lines[inp_lines])
+  inp_ins <- paste0("ins[", seq_along(inp_lines), "]")
+  to_var_list <- strsplit(lines, " ")
+  to_var <- rep(NA, length(lines))
+  for (line in seq_along(to_var_list)) {
+    to_var[line] <- to_var_list[[line]][2]
+  }
+  lines <- gsub("add ", "sum(", lines)
+  lines <- gsub("mul ", "prod(", lines)
+  lines <- gsub("mod ", "`%%`(", lines)
+  lines <- gsub("div ", "`%/%`(", lines)
+  lines <- gsub("eql ", "`==`(", lines)
+  lines <- paste0(lines, ")")
+  lines <- gsub(" ", ", ", lines)
+  lines <- paste(to_var, "<-", lines)
+  lines[inp_lines] <- paste(inp_vars, "<-", inp_ins)
+  writeLines(lines, outpath)
+}
+
+# asm_program("day24_input.txt", "day24_input.R")
+
+run_program("day24_binary_converter.txt", 1L)
+# sweet, but i want a full report!
+
+run_monad <- function(path, input) {
+  # have to specify input as a 14-digit number, no zeros!'
+  monad_input <- as.integer(strsplit(as.character(input), "")[[1]])
+  stopifnot(all(monad_input %in% 1:9))
+  stopifnot(length(monad_input) == 14L)
+  out <- run_program(path, monad_input)
+  return(out)
+}
+
+run_monadR <- function(path, input) {
+  ins <- as.integer(strsplit(as.character(input), "")[[1]])
+  w <- x <- y <- z <- 0
+  source(path, local = TRUE)
+  out <- list(w = w, x = x, y = y, z = z)
+  return(out)
+}
+
+x <- run_monad("day24_input.txt", 11111111111111)$z[252]
+run_monadR("day24_input.R", 11111111111111)$z == x
+run_monadR("day24_input.R", 11111111111111)$z == x
+
+run_monad("day24_input.txt", 12934998949199)
+run_monadR("day24_input_refactor.R", 12934998949199)
+
+# the biggest integer the machine can represent is 2147483647, only 10 digits!
+for (i in 1:1000) {
+  seed <- as.numeric(paste(sample(1:9, 14, replace = TRUE), collapse = ""))
+  x <- run_monad("day24_input.txt", seed)$z[252]
+  stopifnot(run_monadR("day24_input_refactor.R", seed)$z == x)
+  if (i %% 100 == 0) print(i)
+}
+
+# how the heck did i get away with treatig z as numeric??
+
+```
+
+With the code refactored, we can finally see the structure of the MONAD program. We start with z = 0. Each digit of input serves as a logical gate. The first three gates, x1 to x3, MUST be 1. The fourth could be 1 or 0
+
+turn all gates off!
+
+```r
+
+# 12934998949199 - the biggest number possible
+
+input <- 11711691612189
+ins <- as.integer(strsplit(as.character(input), "")[[1]])
+
+z0 <- as.numeric(ins[1] + 13L) * 26L + (ins[2] + 10L)
+# ins[1] sets the initial count for 26s (14:22)
+# ins[2] controls initial remainder (11:19)
+g1 <- as.integer(!(ins[3] - 6L == ins[4])) # g1=0 if ins[3] == ins[4] + 6
+stopifnot(g1 == 0)
+g2 <- as.integer(!(ins[5] + 5L == ins[6])) # g2=0 if ins[5] == ins[6] - 5
+stopifnot(g2 == 0)
+
+z6 <- z0 +
+  g1 * z0 * 25L + g1 * (ins[4] + 14L) +
+  g2 * z0 * 25L + g2 * (ins[6] + 15L) +
+  g1 * g2 * (25L * 25L * z0 + 25L * (ins[4] + 14L))
+
+z7 <- z6 * 26L + (ins[7] + 4L) # ins[7] controls remainder for z7, 5:13
+z8 <- z7 * 26L + (ins[8] + 11L) # ins[8] controls remainder for z8, 12:20
+
+g3 <- as.integer(!(ins[9] - 5L == ins[10])) # g3=0 if ins[9] == ins[10] + 5
+stopifnot(g3 == 0)
+z10 <- z8 + g3 * (z8 * 25L + (ins[10] + 15L))
+x11 <- as.integer(!((z10 %% 26L) - 10L == ins[11])) # x11=0 if ins[8] + 1 == ins[11]
+stopifnot(x11 == 0)
+z11 <- (z10 %/% 26L) + x11 * ((z10 %/% 26L) * 25L + ins[11] + 12L) # (z10 %/% 26L) could be z8 or z7
+x12 <- as.integer(!((z11 %% 26L) - 12L == ins[12])) # x12=0 if ins[7] - 8 == ins[12]
+stopifnot(x12 == 0)
+z12 <- (z11 %/% 26L) + x12 * ((z11 %/% 26L) * 25L + ins[12] + 8L)
+
+x13 <- as.integer(!((z12 %% 26L) - 3L == ins[13])) # set ins[2], check vs ins[13]
+stopifnot(x13 == 0)
+z13 <- (z12 %/% 26L) + x13 * ((z12 %/% 26L) * 25L + ins[13] + 14L)
+x14 <- as.integer(!((z13 %% 26L) - 5L == ins[14]))
+stopifnot(x14 == 0)
+z <- (z13 %/% 26L) + x14 * ((z13 %/% 26L) * 25L + ins[14] + 9L)
+stopifnot(z == 0)
+
+
+
+```
+
+
+
+
+
+
+
+# Day 23: Amphipod
+
+https://adventofcode.com/2021/day/23
+
+A spatial puzzle! We have to instruct amphipods of four types of amphipod, A, B, C and D, into their corresponding room in a spatial map that looks like this:
+
+```
+#############
+#...........#
+###B#C#B#D###
+  #A#D#C#A#
+  #########
+```
+
+Amphipods can only move into spaces that are empty and can move at most twice (once to the empty hallway, and once into their correct room. The cost of moving once space for an A amphipod is 1, for a B is 10, for a C is 100 and for a D is 1000, and we want to assort them using a minimal cost.
+
+
+# Day 22: Reactor Reboot
+
+https://adventofcode.com/2021/day/22
+
+A 3-dimensional array, all 0s.
+apply a list of steps to them
+the 'turn on' subset only flips 0s to 1s, if any are already 1 we leave alone
+the 'turn off' subset only flips 1s to 0s
+
+I solved part 1 by 'brute force' modeling of each individual voxel in each box. But the part 2 scales are so vast there's no way to represent individual voxels in memory. The question is, how to properly calculate the result without having to store so much in memory?
+
+
+```r
+
+rm(list = ls())
+
+calc_reactor_volume <- function(path, init_stage = TRUE) {
+
+  raw <- readLines(path)
+
+  op <- data.frame(
+    turn_on = logical(),
+    xmin = character(),
+    xmax = character(),
+    ymin = character(),
+    ymax = character(),
+    zmin = character(),
+    zmax = character(),
+    reactor_delta = numeric()
+  )
+
+  for (i in seq_along(raw)) {
+    add <- list()
+    add$turn_on <- grepl("^on\\s", raw[i])
+    raw_i <- substr(raw[i], as.numeric(gregexpr("\\s", raw[i])) + 1, nchar(raw[i]))
+    raw_i_vec <- strsplit(raw_i, ",")[[1]]
+    add$xmin <- substr(raw_i_vec[1], regexpr("x=", raw_i_vec[1]) + 2, regexpr("\\.\\.", raw_i_vec[1])-1)
+    add$xmax <- substr(raw_i_vec[1], regexpr("\\.\\.", raw_i_vec[1]) + 2, nchar(raw_i_vec[1]))
+
+    add$ymin <- substr(raw_i_vec[2], regexpr("y=", raw_i_vec[2]) + 2, regexpr("\\.\\.", raw_i_vec[2]) - 1)
+    add$ymax <- substr(raw_i_vec[2], regexpr("\\.\\.", raw_i_vec[2]) + 2, nchar(raw_i_vec[2]))
+
+    add$zmin <- substr(raw_i_vec[3], regexpr("z=", raw_i_vec[3]) + 2, regexpr("\\.\\.", raw_i_vec[3]) - 1)
+    add$zmax <- substr(raw_i_vec[3], regexpr("\\.\\.", raw_i_vec[3]) + 2, nchar(raw_i_vec[3]))
+    op <- dplyr::bind_rows(op, add)
+  }
+
+  op$xmin <- as.numeric(op$xmin)
+  op$xmax <- as.numeric(op$xmax)
+  op$ymin <- as.numeric(op$ymin)
+  op$ymax <- as.numeric(op$ymax)
+  op$zmin <- as.numeric(op$zmin)
+  op$zmax <- as.numeric(op$zmax)
+
+  rctr <- list(
+    xmin = min(op$xmin),
+    xmax = max(op$xmax),
+    ymin = min(op$ymin),
+    ymax = max(op$ymax),
+    zmin = min(op$zmin),
+    zmax = max(op$zmax)
+  )
+
+  if (init_stage) {
+    # truncate shapes that go over the boundaries
+    op$xmin[op$xmin < -50] <- (-50)
+    op$ymin[op$ymin < -50] <- (-50)
+    op$zmin[op$zmin < -50] <- (-50)
+    op$xmax[op$xmax > 50] <- (50)
+    op$ymax[op$ymax > 50] <- (50)
+    op$zmax[op$zmax > 50] <- (50)
+
+    # cut off shapes totally outside the range
+    op$xmax[op$xmax < -50] <- NA
+    op$ymax[op$ymax < -50] <- NA
+    op$zmax[op$zmax < -50] <- NA
+    op$xmin[op$xmin > 50] <- NA
+    op$ymin[op$ymin > 50] <- NA
+    op$zmin[op$zmin > 50] <- NA
+  }
+
+  op$xlen <- (op$xmax - op$xmin) + 1
+  op$ylen <- (op$ymax - op$ymin) + 1
+  op$zlen <- (op$zmax - op$zmin) + 1
+
+  op$volume <- op$xlen * op$ylen * op$zlen
+
+  op$xmin_j <- op$xmax_j <- NA
+  op$ymin_j <- op$ymax_j <- NA
+  op$zmin_j <- op$zmax_j <- NA
+  op$xlen_j <- op$ylen_j <- op$zlen_j <- NA
+
+  drop <- which(is.na(op$xlen) | is.na(op$ylen) | is.na(op$zlen))
+  if (length(drop) > 0) op <- op[-drop,,drop = FALSE]
+
+  verbose <- FALSE
+
+  ########
+
+  for (j in seq_len(nrow(op))) {
+    print(paste("evaluating box", j))
+    op$reactor_delta[j] <- 0
+    if (op$turn_on[j]) {
+      jth_volume <- op$xlen[j] * op$ylen[j] * op$zlen[j]
+      jth_overlap <- 0
+      if (j != nrow(op)) {
+        # truncate all dimensions for subsequent boxes
+        op$xmin_j <- pmax(op$xmin, op$xmin[j])
+        op$xmax_j <- pmin(op$xmax, op$xmax[j])
+        op$ymin_j <- pmax(op$ymin, op$ymin[j])
+        op$ymax_j <- pmin(op$ymax, op$ymax[j])
+        op$zmin_j <- pmax(op$zmin, op$zmin[j])
+        op$zmax_j <- pmin(op$zmax, op$zmax[j])
+        # use inclusion-exclusion to sum all volumes subsequent to the jth box, within the jth volume
+        # need to subset here to just those boxes within the boundaries...
+        op$xlen_j <- op$xmax_j - op$xmin_j + 1
+        op$ylen_j <- op$ymax_j - op$ymin_j + 1
+        op$zlen_j <- op$zmax_j - op$zmin_j + 1
+        remaining <- which(seq_len(nrow(op)) > j & op$xlen_j > 0 & op$ylen_j > 0 & op$zlen_j > 0)
+        n_boxes <- length(remaining)
+        if (n_boxes > 0) {
+          print(paste(n_boxes, "boxes remaining to consider overlaps"))
+          combos <- expand.grid(rep(list(c(FALSE, TRUE)), n_boxes)) # there are too many combinations...
+          combos <- combos[-1,,drop = FALSE]
+          for (i in seq_len(nrow(combos))) {
+            this_combo <- remaining[which(as.logical(combos[i,]))]
+            if (verbose) print(paste("considering boxes", paste(this_combo, collapse = ", ")))
+            x_overlapping <- min(op$xmax_j[this_combo]) >= max(op$xmin_j[this_combo])
+            y_overlapping <- min(op$ymax_j[this_combo]) >= max(op$ymin_j[this_combo])
+            z_overlapping <- min(op$zmax_j[this_combo]) >= max(op$zmin_j[this_combo])
+            if (x_overlapping & y_overlapping & z_overlapping) {
+              x_len <- min(op$xmax_j[this_combo]) - max(op$xmin_j[this_combo]) + 1
+              y_len <- min(op$ymax_j[this_combo]) - max(op$ymin_j[this_combo]) + 1
+              z_len <- min(op$zmax_j[this_combo]) - max(op$zmin_j[this_combo]) + 1
+              v_overlap <- x_len * y_len * z_len
+              if (verbose) print(paste("added overlap of", (-1)^(length(this_combo) - 1) * v_overlap))
+              jth_overlap <- jth_overlap + (-1)^(length(this_combo) - 1) * v_overlap
+              stopifnot(!is.na(jth_overlap))
+            }
+          }
+        }
+      }
+      print(paste("total volume is", jth_volume))
+      print(paste("of that,", jth_overlap, "is overlapping with subsequent boxes"))
+      op$reactor_delta[j] <- jth_volume - jth_overlap
+      print(paste("so reactor_delta[j] is", op$reactor_delta[j]))
+    }
+  }
+
+  return(sum(op$reactor_delta))
+
+}
+
+calc_reactor_volume("day22_input_test.txt") == 39
+calc_reactor_volume("day22_input_test2.txt") == 590784 
+calc_reactor_volume("day22_input_test3.txt") == 474140
+calc_reactor_volume("day22_input.txt") == 596989
+calc_reactor_volume("day22_input_test3.txt", init_stage = FALSE) == 2758514936282235
+calc_reactor_volume("day22_input.txt", init_stage = FALSE) == 1160011199157381
+
+```
+
+
+
+
+# Day 21: Dirac Dice
+
+https://adventofcode.com/2021/day/21
+
+Dirac Dice is a two-player game that consists of a single die, two pawns (one for each player), and a game board with a circular track and ten marked spaces or position, 1 to 10, clockwise. Each player's starting place is chosen, and they take turns moving. On each player's turn, the player rolls the die three times, adds up the results (a value which depends on how many sides the die has!), and moves their pawn that many times around the track. The value of the space they land on is the number of points they get, added to a score that starts at 0. In both parts, our task is to figure out which player will win the game, at first in a deterministic system, then a stochatic one.
+
+In Part One, we use deterministic, 100-sided dice! That is, the dice always start at 1, then 2, then 3, up to 100 in sequence, starting over again at 1 after 100. The first player rolls {1, 2, 3} and so moves 6 spaces. The second player rolls {4, 5, 6} and so moves 15 spaces, etc. The first player to reach a score of 1000 wins
+
+In principle the total score of a player on a particular turn can be calculated exactly if we know a player's starting position and how many moves they've experienced by the end of that turn. To do it, we just calculate the sum of these two values, i + k, score the number of complete loops and the remaining uncomplete loop, and subtract the score of a(i). For example, if they started on position 2, and moved 3 spaces, then their score is just a(5) - a(2) = 3 + 4 + 5. If they instead moved 17 spaces, that's `a(((2 + 17) - 1) %% 10 + 1) = a(9)` = 45 points for completing the initial loop, `a(10) * (((2 + 17) - 1) %/% 10)` = 55 points for the 1 complete loop minus a(2) = 3, or 52 points.
+
+We just need to know the cumulative number of moves each player gets by the end of any a particular turn. Let's start with the number *on* a give turn - for our deterministic die, the number of moves on each turn $i$ is $3(3i - 1)$. The sum of all moves up to and including turn $i$ is $3i(3i+1)/2$, which can be decomposed into the sum of moves in all even turns, which go to player 2, and all odd terms, which go to player 1.
+
+```r
+
+rm(list = ls())
+
+# arithmetic using the 100-sided 'deterministic dice'
+m <- function(i) 3 * (3 * i - 1) # moves rolled on turn i
+s <- function(i) (3/2) * i * (3 * i + 1) # total number of moves up to and including turn i
+v <- function(i) {
+  # total number of moves across even turns up to and including turn i
+  if (i %% 2 == 0) {
+    (3/2) * i * ((3/2) * i + 2)
+  } else {
+    v(i - 1)
+  }
+}
+d <- function(i) {
+  # total number of moves across odd turns up to and including turn i
+  if (i %% 2 != 0) {
+    (3/2) * (i + 1) * (3 * i + 1)/2
+  } else {
+    d(i - 1)
+  }
+}
+p1_score_turn <- function(t, i = 4, m = 10) {
+  if (t %% 2 != 0) {
+    return((i + d(t) - 1) %% m + 1)
+  } else {
+    return(0)
+  }
+}
+p2_score_turn <- function(t, i = 8, m = 10) {
+  if (t %% 2 == 0) {
+    return((i + v(t) - 1) %% m + 1)
+  } else {
+    return(0)
+  }
+}
+
+# test data: p1 starts at 4, p2 starts at 8
+# real data: p1 starts at 1, p2 starts at 2
+p1_init <- 1; p2_init <- 2
+turns <- 2:1000
+p1_total_score <- p2_total_score <- rep(NA, length(turns) + 1)
+p1_total_score[1] <- p1_score_turn(1, i = p1_init)
+p2_total_score[1] <- 0
+for (turn in turns) {
+  p1_total_score[turn] <- p1_total_score[turn - 1] + p1_score_turn(turn, i = p1_init)
+  p2_total_score[turn] <- p2_total_score[turn - 1] + p2_score_turn(turn, i = p2_init)
+}
+
+i_win <- min(which(p1_total_score >= 1000 | p2_total_score >= 1000))
+
+# test data:
+i_win == 331
+p1_total_score[i_win] == 1000
+p2_total_score[i_win] == 745
+i_win * 3 * min(c(p1_total_score[i_win], p2_total_score[i_win])) == 739785
+
+# real data:
+i_win == 364
+p1_total_score[i_win] == 548
+p2_total_score[i_win] == 1007
+i_win * 3 * min(c(p1_total_score[i_win], p2_total_score[i_win])) == 598416
+
+```
+
+## Part Two
+
+Ok, now we use a three-sided "Dirac die", and must explore *all possible outcomes of each roll of the die*. Here a game ends when a player's score reaches 21. Here I solved it by creating an array that indexes five properties to define a game state - the board positions and scores, and the turn number, and then counted timelines iteratively.
+
+```r
+
+rm(list = ls())
+
+n_turns <- 30
+winning_score <- 21
+verbose <- FALSE
+
+# initialize an empty array to store timeline counts for each turn
+A <- array(c(0L, 0L, 0L, 0L), dim = c(10, winning_score, 10, winning_score, n_turns + 1))
+
+# pos test data: 4L and 8L
+# pos real data: 1L and 2L
+
+# initialize 'turn 0' before the first roll
+p1_pos <- 4L
+p1_score <- 0L
+p2_pos <- 8L
+p2_score <- 0L
+turn <- 0
+A[p1_pos, p1_score + 1, p2_pos, p2_score + 1, turn + 1] <- 1
+print(paste("before first turn, player 1 on", p1_pos, "with score", p1_score, "and player 2 on", p2_pos, "with score", p2_score))
+
+new_winners <- rep(0L, n_turns)
+
+for (turn in seq_len(n_turns)) {
+  print(paste("playing turn", turn))
+  for (roll_one in 1:3) {
+    for (roll_two in 1:3) {
+      for (roll_three in 1:3) {
+        roll <- roll_one + roll_two + roll_three
+        if (verbose) print(paste("turn", turn, "rolled", roll))
+        for (p1_last_pos in 1:10) {
+          for (p1_last_score in 0:(winning_score - 1)) {
+            for (p2_last_pos in 1:10) {
+              for (p2_last_score in 0:(winning_score - 1)) {
+                if (turn %% 2L != 0) {
+                  p1_pos <- (p1_last_pos + roll - 1L) %% 10L + 1L
+                  p1_score <- p1_last_score + p1_pos
+                  p2_pos <- p2_last_pos
+                  p2_score <- p2_last_score
+                  if (p1_score < winning_score) {
+                    if (A[p1_last_pos, p1_last_score + 1, p2_last_pos, p2_last_score + 1, (turn + 1) - 1] > 0L) {
+                      if (verbose) print(paste("after turn", turn, ", player 1 on", p1_pos, "with score", p1_score))
+                      A[p1_pos, p1_score + 1, p2_pos, p2_score + 1, turn + 1] <- A[p1_pos, p1_score + 1, p2_pos, p2_score + 1, turn + 1] + A[p1_last_pos, p1_last_score + 1, p2_last_pos, p2_last_score + 1, (turn + 1) - 1]
+                    }
+                  } else {
+                    if (A[p1_last_pos, p1_last_score + 1, p2_last_pos, p2_last_score + 1, (turn + 1) - 1] > 0L) {
+                      if (verbose) print(paste("after turn", turn, ", player 1 wins with score", p1_score))
+                      new_winners[turn] <- new_winners[turn] + A[p1_last_pos, p1_last_score + 1, p2_last_pos, p2_last_score + 1, (turn + 1) - 1]
+                    }
+                  }
+                } else {
+                  p1_pos <- p1_last_pos
+                  p1_score <- p1_last_score
+                  p2_pos <- (p2_last_pos + roll - 1L) %% 10L + 1L
+                  p2_score <- p2_last_score + p2_pos
+                  if (p2_score < winning_score) {
+                    if (A[p1_last_pos, p1_last_score + 1, p2_last_pos, p2_last_score + 1, (turn + 1) - 1] > 0L) {
+                      if (verbose) print(paste("after turn", turn, ", player 2 on", p2_pos, "with score", p2_score))
+                      A[p1_pos, p1_score + 1, p2_pos, p2_score + 1, turn + 1] <- A[p1_pos, p1_score + 1, p2_pos, p2_score + 1, turn + 1] + A[p1_last_pos, p1_last_score + 1, p2_last_pos, p2_last_score + 1, (turn + 1) - 1]
+                    }
+                  } else {
+                    if (A[p1_last_pos, p1_last_score + 1, p2_last_pos, p2_last_score + 1, (turn + 1) - 1] > 0L) {
+                      if (verbose) print(paste("after turn", turn, ", player 2 wins with score", p2_score))
+                      new_winners[turn] <- new_winners[turn] + A[p1_last_pos, p1_last_score + 1, p2_last_pos, p2_last_score + 1, (turn + 1) - 1]
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+  if (sum(A[ , , , , turn + 1]) == 0L) break()
+}
+
+# consistency checks
+sum(A[ , , , , 0 + 1]) == 27^0
+sum(A[ , , , , 1 + 1]) == 27^1
+sum(A[ , , , , 2 + 1]) == 27^2
+sum(A[ , , , , 3 + 1]) == 27^3
+sum(A[ , , , , 4 + 1]) == 27^4
+sum(A[ , , , , 5 + 1]) + new_winners[5] == 27^5 # works for the first one...
+
+p1_winners <- sum(new_winners[seq(1, n_turns, 2)])
+p2_winners <- sum(new_winners[seq(2, n_turns, 2)])
+
+# test input
+p1_winners == 444356092776315
+p2_winners == 341960390180808
+
+# 57% chance of p1 winning
+
+# real input
+p1_winners == 27674034218179
+p2_winners == 17242469745088
+
+# 62% chance of p1 winning
+
+```
+
+
+
+# Day 20: Trench Map
+
+https://adventofcode.com/2021/day/20
+
+We're given an "image enhancement algorithm" (a bit string of 512 characters) and an "input image" (a bit map). Each input image pixel and the eight adjacent pixels in the grid are combined by concatenation to produce an index for the bit string, and the pixel stored at that index is the output pixel for this map.
+
+But what to do with edges? Ah, there's an infinite border of dark pixels around the image. It's like Conway's Game of Life!
+
+Here's my proposal:
+1. Initialize a "large enough" matrix size m x n for the task. How to define 'large enough'? As a general rule, it seems like you can anticipate for n enhancements, you'll need n layers of 0s around the starting matrix, which can be added as two rbinds and two cbinds.
+2. Identify all cells that are adjacent to a '1' in any direction, so have to be updated. How do we know if a pixel is to be updated? which(x == 1) with some math maybe?
+a. for all pixels i with a 1, add the values to the lazy list: c(c(i-1,i,i+1), c(i-1,i,i+1) - n, c(i-1,i,i+1) + n).
+b. then just ask if 1:(n*m) is %in% that lazy list; those are the pixels to cycle through and update
+3. For each cell j,k in the matrix, if that cell is to be updated, concatenate the j-1, j and j+1 rows of (k-1):(k+1) as a bit vector, convert to a decimal l, and replace the j,k value with `dict[l+1]`.
+
+```r
+
+rm(list = ls())
+
+bin_to_dec <- function(x) {
+  sum((2^((length(x):1) - 1)) * x)
+}
+
+enhance_bitmap <- function(path, n_enhance) {
+  raw <- readLines(path)
+  dict <- as.numeric(strsplit(raw[1], "")[[1]] == "#") # 512 entries
+  d <- matrix(NA, nrow = (length(raw) - 3 + 1), ncol = nchar(raw[3]))
+  for (j in 1:nrow(d)) d[j,] <- as.numeric(strsplit(raw[j + 2], "")[[1]] == "#")
+  # pad out the bitmap
+  buffer <- 2 * n_enhance
+  margin_above <- matrix(0, nrow = buffer, ncol = ncol(d))
+  d <- rbind(margin_above, d)
+  d <- rbind(d, margin_above)
+  margin_left <- matrix(0, nrow = nrow(d), ncol = buffer)
+  d <- cbind(margin_left, d)
+  d <- cbind(d, margin_left)
+  n <- nrow(d)
+  m <- ncol(d)
+  if (n_enhance > 0) {
+    for (enhance in 1:n_enhance) {
+      # now update using the rules
+      d_new <- d
+      for (j in 1:n) {
+        for (k in 1:m) {
+          update_pixel <- 1 < j & j < n & 1 < k & k < m
+          if (update_pixel) {
+            bin_address <- c(d[(j-1),(k-1):(k+1)], d[j,(k-1):(k+1)], d[(j+1),(k-1):(k+1)])
+            d_new[j,k] <- dict[bin_to_dec(bin_address) + 1]
+          }
+        }
+      }
+      d <- d_new
+      print(paste(enhance, "enhance!"))
+    }
+  }
+  # remove the buffer layers with pathological 'infinity effects'
+  if (n_enhance > 0) {
+    d <- d[-c(1:n_enhance, (n + 1) - 1:n_enhance),]
+    d <- d[,-c(1:n_enhance, (n + 1) - 1:n_enhance)]
+  }
+  return(d)
+}
+
+# load the data
+
+d0 <- enhance_bitmap("day20_input_test.txt", 0)
+d1 <- enhance_bitmap("day20_input_test.txt", 1)
+d2 <- enhance_bitmap("day20_input_test.txt", 2)
+d50 <- enhance_bitmap("day20_input_test.txt", 50)
+
+par(mfrow = c(2, 2))
+image(t(d0[nrow(d0):1,]), axes = FALSE)
+image(t(d1[nrow(d1):1,]), axes = FALSE)
+image(t(d2[nrow(d2):1,]), axes = FALSE)
+image(t(d50[nrow(d50):1,]), axes = FALSE)
+
+
+sum(d2) == 35 # test data
+sum(d50) == 3351 # test data
+
+d0 <- enhance_bitmap("day20_input.txt", 0)
+d1 <- enhance_bitmap("day20_input.txt", 1)
+d2 <- enhance_bitmap("day20_input.txt", 2)
+d50 <- enhance_bitmap("day20_input.txt", 50)
+
+sum(d2) == 4873
+sum(d50) == 16394
+
+par(mfrow = c(2, 2))
+image(t(d0[nrow(d0):1,]))
+image(t(d1[nrow(d1):1,]))
+image(t(d2[nrow(d2):1,]))
+image(t(d50[nrow(d50):1,]))
+
+```
+
+A key assumption I had was that only pixels with any neighboring 1s need to be updated...that works, provided the first dict entry is 0 right? ah, but it's not! the zeros are all being updated
+
+ok, so clearly i dont understand how the margins are supposed to work ehre...something is really weird about this updating system
+
+the best i can do is add a buffer to 2 times the number of enhancements, then remove one of the two buffer layers
+
 
 
 # Day 19: Beacon Scanner
@@ -40,19 +908,34 @@ while there is more than one data frame in the list `s`....
 
 the while loop will repeat this algorithm until all coordinates have been absorbed into one data frame, at which point we've solved part 1
 
+ok, here's a simpler algorithm to get the 24 orientations
+begin with a key axis side, +x, as 'red'. rotate along the x axis 0-3 times to get the 4 orientations with red as +x. rotate red twice to get it as -x, and do the same 0-3 rotations along the x axis. now rotate red up to be +z. rotate along the z axis 0-3 times. then rotate red down to -z and rotate along the z axis 0-3 times. finally, rotate red to +y and rotate 0-3 along y axis. and rotate red -y and do the same. 6 * 4 = 24 unique orientations, vs 128 as I was doing it before...
+so we need *one* or *three* rotations followed by 0:4 rotations along the A axis
+
+(always starting from the same orientation)
+0-3) rotate +90 * 0-3 times around the x axis (yz plane)
+4-11) rotate c(+90, -90) on z axis (xy plane), and for each then rotate +90 * 0-3 times on the y axis (xz plane)
+12-19) rotate c(+90, -90) on the y axis (xz plane), and for each, +90 * 0-3 times on the z axis (xy plane)
+20-23) rotate 2 * +90 on y axis (xz plane) then +90 * 0-3 times on the x axis (yz plane)
+
+there's also a *linear* seqeunce of transofrms that cycle through all 24 in a very simple manner, let's just do those...
+imagine we are looking at an 'enterprise' like shape head on, with the x axis in front, the +y-axis to the ship's left, and the z axis to the ship's top, by the right-hand-rule. a ccw rotate of +90 on x is called (+x), of -90 is (-x), etc.
+(+x)(+x)(+x) (+z)  (-y)(-y)(-y) (+x) (+z)(+z)(+z) (-y) (+x)(+x)(+x) (+z) (-y)(-y)(-y) (+x) (+z)(+z)(+z)
+if i can specify each of these as an orientation to apply to the input dynamically it cycle through all 24 orientations!
+
 ```r
 
 rm(list = ls())
 
-apply_transform <- function(data, n_turn_xy, n_turn_xz, n_turn_yz) {
-  theta_z <- n_turn_xy * (pi/2)
-  theta_y <- n_turn_xz * (pi/2)
-  theta_x <- n_turn_yz * (pi/2)
-  A_z <- round(matrix(
+apply_transform <- function(data, n_turn_z = 0, n_turn_y = 0, n_turn_x = 0) {
+  theta_z <- n_turn_z * (pi/2)
+  theta_y <- n_turn_y * (pi/2)
+  theta_x <- n_turn_x * (pi/2)
+  A_x <- round(matrix(
     c(
-      cos(theta_z), -sin(theta_z), 0,
-      sin(theta_z), cos(theta_z), 0,
-      0, 0, 1
+      1, 0, 0,
+      0, cos(theta_x), -sin(theta_x),
+      0, sin(theta_x), cos(theta_x)
     ), byrow = TRUE, ncol = 3))
   A_y <- round(matrix(
     c(
@@ -60,33 +943,90 @@ apply_transform <- function(data, n_turn_xy, n_turn_xz, n_turn_yz) {
                  0, 1, 0,
       -sin(theta_y), 0, cos(theta_y)
     ), byrow = TRUE, ncol = 3))
-  A_x <- round(matrix(
+  A_z <- round(matrix(
     c(
-      1, 0, 0,
-      0, cos(theta_x), -sin(theta_x),
-      0, sin(theta_x), cos(theta_x)
+      cos(theta_z), -sin(theta_z), 0,
+      sin(theta_z), cos(theta_z), 0,
+      0, 0, 1
     ), byrow = TRUE, ncol = 3))
   xyz_data <- as.matrix(data[,c("x", "y", "z")])
-  xyz_data <- t(A_z %*% t(xyz_data))
-  xyz_data <- t(A_y %*% t(xyz_data))
+  # note: the order you apply these determines the outcome!
   xyz_data <- t(A_x %*% t(xyz_data))
+  xyz_data <- t(A_y %*% t(xyz_data))
+  xyz_data <- t(A_z %*% t(xyz_data))
   data$x <- xyz_data[,1]
   data$y <- xyz_data[,2]
   data$z <- xyz_data[,3]
   return(data)
 }
 
+library(dplyr)
+
+test_e <- list(
+  # bridge
+  list(x = 2, y = 0, z = 0.85),
+  # saucer
+  list(x = 2.5, y = 0, z = 0.75),
+  list(x = 2.354, y = 0.354, z = 0.75),
+  list(x = 2, y = 0.5, z = 0.75),
+  list(x = 1.646, y = 0.354, z = 0.75),
+  list(x = 1.5, y = 0, z = 0.75),
+  list(x = 1.646, y = -0.354, z = 0.75),
+  list(x = 2, y = -0.5, z = 0.75),
+  list(x = 2.354, y = -0.354, z = 0.75),
+  # neck
+  list(x = 1.125, y = 0, z = 0.1875),
+  list(x = 1.250, y = 0, z = 0.375),
+  list(x = 1.375, y = 0, z = 0.5625),
+  # engineering
+  list(x = 0.75, y = 0, z = 0),
+  list(x = 0.5, y = 0, z = 0),
+  list(x = 0.25, y = 0, z = 0),
+  list(x = 0, y = 0, z = 0),
+  list(x = -0.25, y = 0, z = 0),
+  # port nacelle pylon
+  list(x = 0, y = 0.2, z = 0.1),
+  list(x = 0, y = 0.4, z = 0.2),
+  list(x = 0, y = 0.6, z = 0.3),
+  list(x = 0, y = 0.8, z = 0.4),
+  list(x = 0, y = 1, z = 0.5),
+  # port nacelle
+  list(x = -1.5, y = 1, z = 0.5),
+  list(x = -1, y = 1, z = 0.5),
+  list(x = -0.5, y = 1, z = 0.5),
+  list(x = 0.5, y = 1, z = 0.5),
+  # starboard nacelle pylon
+  list(x = 0, y = -0.2, z = 0.1),
+  list(x = 0, y = -0.4, z = 0.2),
+  list(x = 0, y = -0.6, z = 0.3),
+  list(x = 0, y = -0.8, z = 0.4),
+  list(x = 0, y = -1, z = 0.5),
+  # starboard nacelle
+  list(x = -1.5, y = -1, z = 0.5),
+  list(x = -1, y = -1, z = 0.5),
+  list(x = -0.5, y = -1, z = 0.5),
+  list(x = 0.5, y = -1, z = 0.5)
+) %>% bind_rows() %>% as.data.frame()
+
+library(plot3D)
+d2 <- apply_transform(test_e, n_turn_x = 3)
+points3D(d2$x, d2$y, d2$z, xlim = c(-2, 2), ylim = c(-2, 2), zlim = c(-2, 2), ticktype = "detailed", bty = "g", col = "black", pch = 20, phi = 0, theta = 90) # phi = 0, theta = 90
+
+# (+x)(+x)(+x) (+z)  (-y)(-y)(-y) (+x) (+z)(+z)(+z) (-y) (+x)(+x)(+x) (+z) (-y)(-y)(-y) (+x) (+z)(+z)(+z)
+
+
+
 match_scanners <- function(s) {
-  orientations <- expand.grid(n_turn_xy = 0:3, n_turn_xz = 0:3, n_turn_yz = 0:3)
+  orientations <- expand.grid(n_turn_z = 0:3, n_turn_y = 0:3, n_turn_x = 0:3)
   while(length(s) > 1) {
     print(paste(length(s) - 1, "scanners remain unmatched"))
     picks <- sample(1:length(s), 2)
     ref <- s[[picks[1]]]
     for (i in 1:nrow(orientations)) {  # for each orientation i
       com <- s[[picks[2]]]
-      com <- apply_transform(com, n_turn_xy = orientations$n_turn_xy[i],
-        n_turn_xz = orientations$n_turn_xz[i],
-        n_turn_yz = orientations$n_turn_yz[i]
+      com <- apply_transform(com, n_turn_z = orientations$n_turn_z[i],
+        n_turn_y = orientations$n_turn_y[i],
+        n_turn_x = orientations$n_turn_x[i]
       )
       for (j in 1:nrow(com)) { # for each j in the comparison set
         # calculate the coordinates in com with point j as new origin
@@ -195,78 +1135,345 @@ max(manhatten) == 14804
 
 
 
-Why is goto harmful?
-https://www.youtube.com/watch?v=FGAWniPGKjc
-goto is *unavoidable* in assembly language, it's exactly how processors work.
-its doing it in *higher-level* languages that is the problem
-*why* you are going-to is not clear. in higher-level languages, control flow statements like 'while' or 'for' provide much clearer reasons for the execution
-
-
-
-
 # Day 18: Snailfish
 
 https://adventofcode.com/2021/day/18
 
-Snailfish numbers are numbered lists of two elements. Each element can be a digit from 0 to 9, or another list of two elements. There are three operations we perform on snailfish numbers:
-
-- *add*: The addition of two snailfish numbers involves combining them into a new list of two elements, with the first snailfish number being the first element, and the second number in the operation being the second element.
-- *split*: a digit element within a snailfish number is replaced by a pair. The left element of the pair is the digit divided by two and rounded down. The right element of the pair is the digit divided by two and rounded up.
-- *explode*: when a snailfish number explodes, the first element is added arithmetically to the last digit in the nesting, and the second digit is arithmetically added to the next digit in the nesting. If there is no such adjacent digit, the digit simply disappears.
-
-There's an additional operation called *reduce* that combines the last two operations in a while-loop. To "reduce" a snailfish number, repeatedly do the first action on this list that applies:
-- If any pair is nested inside four pairs, the leftmost such pair "explodes"
-- If any regular number is 10 or greater, the leftmost such regular number "splits".
-
-Using lists:
+The functions `split`, `split_tree` and `split_once` take care of everything split-related. The `count_tree` and `add_value` are both helper functoins for `explode_tree` which takes care of everything explode-related. Then the `add_snailfish` function wraps all those together, and the `calc_magnitude` produces the desired output!
 
 ```r
-
-a <- list(5, 7)
-b <- list(10, 12)
-c <- list(a, b) # the 'add' operation is just the list() operator
-d <- list(a, c, b)
 
 split <- function(value) {
   list(floor(value/2), ceiling(value/2))
 }
 
-# how to traverse the nested list quickly tho? like, if i have a list, how do i specify additional argument(s) to locate the specific address?
+identical(split(10), list(5, 5))
+identical(split(11), list(5, 6))
+identical(split(12), list(6, 6))
 
+split_tree <- function(tree) {
+  for (i in 1:2) {
+    if (is.numeric(tree[[i]])) {
+      if (tree[[i]] > 9) {
+        tree[[i]] <- split(tree[[i]])
+      }
+    } else {
+      tree[[i]] <- split_tree(tree[[i]])
+    }
+  }
+  return(tree)
+}
 
-
-d[[2]][[2]]
-
-reduce <- function(x)
-
-```
-
-Using strings?
-
-```r
-
-add_snails <- function(a, b) paste0("[", a, ",", b, "]")
-add_snails("[1,2]", "[[3,4],5]") == "[[1,2],[[3,4],5]]"
-
-split_snail <- function(a, pointer) {
-  value_chr <- substr(a, pointer, pointer)
-  stopifnot (!is.na(as.numeric(value_chr)))
-  value <- as.numeric(value_chr)
-  add <- paste0("[", floor(value/2), ",", ceiling(value/2), "]")
-  out <- paste0(substr(a, 1, (pointer - 1)), add, substr(a, (pointer + 1), nchar(a)))
+split_once <- function(tree, has_split = FALSE) {
+  for (i in 1:2) {
+    if (is.numeric(tree[[i]])) {
+      if (!has_split & tree[[i]] > 9) {
+        tree[[i]] <- split(tree[[i]])
+        has_split <- TRUE
+      }
+    } else {
+      recurse <- split_once(tree[[i]], has_split)
+      tree[[i]] <- recurse$tree
+      has_split <- recurse$has_split
+    }
+  }
+  out <- list(tree = tree, has_split = has_split)
   return(out)
 }
 
-# i have no idea how to detect if a pair is "nested inside four pairs". What could I possibly do here?
+x <- list(10, 2)
+identical(split_tree(x), list(list(5, 5), 2))
+identical(split_once(x)$tree, list(list(5, 5), 2))
 
-x <- "[[[[[9,8],1],2],3],4]"
+x <- list(list(10, 2), 3)
+identical(split_once(x)$tree, list(list(list(5, 5), 2), 3))
+
+x <- list(list(10, 2), list(3, list(11, 2)))
+identical(split_tree(x), list(list(list(5, 5), 2), list(3, list(list(5, 6), 2))))
+# only one split occurs now!
+identical(split_once(x)$tree, list(list(list(5, 5), 2), list(3, list(11, 2))))
 
 ```
 
+Our basic
+
+```r
+
+count_tree <- function(tree, counter = 0) {
+  for (i in 1:2) {
+    if (is.numeric(tree[[i]])) {
+      counter <- counter + 1
+    } else {
+      counter <- count_tree(tree[[i]], counter)
+    }
+  }
+  return(counter)
+}
+
+count_tree(list(10, 10)) == 2
+count_tree(list(list(10, 10), list(10, 10))) == 4
+count_tree(list(list(10, list(10, 10)), list(10, 10))) == 5
+
+# how to add values at specific locations
+add_value <- function(tree, target, value, counter = 1) {
+  binary_order <- 1:2
+  for (i in binary_order) {
+    if (is.numeric(tree[[i]])) {
+      if (counter == target) {
+        tree[[i]] <- tree[[i]] + value
+      }
+      counter <- counter + 1
+    } else {
+      recurse <- add_value(tree[[i]], target, value, counter)
+      tree[[i]] <- recurse$tree
+      counter <- recurse$counter
+    }
+  }
+  return(list(tree = tree, counter = counter)) 
+}
+
+x <- list(list(10, 2), 3)
+identical(add_value(x, 1, 5)$tree, list(list(10 + 5, 2), 3))
+identical(add_value(x, 2, 5)$tree, list(list(10, 2 + 5), 3))
+identical(add_value(x, 3, 5)$tree, list(list(10, 2), 3 + 5))
+
+explode_tree <- function(tree) {
+  n_values <- count_tree(tree)
+  counter <- 0
+  for (d1 in 1:2) {
+    if (is.numeric(tree[[d1]])) {
+      counter <- counter + 1
+    } else if (is.list(tree[[d1]])) {
+      for (d2 in 1:2) {
+        if (is.numeric(tree[[d1]][[d2]])) {
+          counter <- counter + 1
+        } else if (is.list(tree[[d1]][[d2]])) {
+          for (d3 in 1:2) {
+            if (is.numeric(tree[[d1]][[d2]][[d3]])) {
+              counter <- counter + 1
+            } else if (is.list(tree[[d1]][[d2]][[d3]])) {
+              for (d4 in 1:2) {
+                if (is.numeric(tree[[d1]][[d2]][[d3]][[d4]])) {
+                  counter <- counter + 1
+                } else if (is.list(tree[[d1]][[d2]][[d3]][[d4]])) {
+                  # this needs to be exploded!
+                  left_value <- tree[[d1]][[d2]][[d3]][[d4]][[1]]
+                  left_index <- counter + 1
+                  if (1 <= (left_index - 1)) {
+                    tree <- add_value(tree, left_index - 1, left_value)$tree
+                  }
+                  right_value <- tree[[d1]][[d2]][[d3]][[d4]][[2]]
+                  right_index <- counter + 2
+                  if ((right_index + 1) <= n_values) {
+                    tree <- add_value(tree, right_index + 1, right_value)$tree
+                  }
+                  # having added the values to adjacent entries, explode the node
+                  tree[[d1]][[d2]][[d3]][[d4]] <- 0
+                  counter <- counter + 1
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+  return(tree)
+}
+
+# what happens if two explosions happen right next to each other?? you'd add the first exploded value to the second pair, but you would then EXPLODE the second pair before splitting per the instructions
+
+# explosion
+x0 <- list(list(list(list(list(9, 8), 1), 2), 3), 4)
+x <- x0
+ex <- x[[1]][[1]][[1]][[1]]
+# ex[[1]] is lost
+x[[1]][[1]][[1]][[2]] <- x[[1]][[1]][[1]][[2]] + ex[[2]]
+x[[1]][[1]][[1]][[1]] <- 0
+identical(explode_tree(x0), x)
+
+# explosion
+x0 <- list(7, list(6, list(5, list(4, list(3, 2)))))
+x <- x0
+ex <- x[[2]][[2]][[2]][[2]]
+x[[2]][[2]][[2]][[1]] <- x[[2]][[2]][[2]][[1]] + ex[[1]]
+x[[2]][[2]][[2]][[2]] <- 0
+# ex[[2]] is los
+identical(explode_tree(x0), x)
+
+# explosion
+x0 <- list(list(6, list(5, list(4, list(3, 2)))), 1)
+x <- x0
+ex <- x[[1]][[2]][[2]][[2]]
+x[[1]][[2]][[2]][[1]] <- x[[1]][[2]][[2]][[1]] + ex[[1]]
+x[[2]] <- x[[2]] + ex[[2]]
+x[[1]][[2]][[2]][[2]] <- 0
+identical(explode_tree(x0), x)
+
+# explosion
+x0 <- list(list(3, list(2, list(1, list(7, 3)))), list(6, list(5, list(4, list(3, 2)))))
+x <- x0
+ex <- x[[1]][[2]][[2]][[2]]
+x[[1]][[2]][[2]][[1]] <- x[[1]][[2]][[2]][[1]] + ex[[1]]
+x[[2]][[1]] <- x[[2]][[1]] + ex[[2]]
+x[[1]][[2]][[2]][[2]] <- 0
+ex <- x[[2]][[2]][[2]][[2]]
+x[[2]][[2]][[2]][[1]] <- x[[2]][[2]][[2]][[1]] + ex[[1]]
+x[[2]][[2]][[2]][[2]] <- 0
+x2 <- explode_tree(x0)
+identical(explode_tree(x0), x)
+
+# explosion
+x0 <- list(list(3, list(2, list(8, 0))), list(9, list(5, list(4, list(3, 2)))))
+x <- x0
+ex <- x[[2]][[2]][[2]][[2]]
+x[[2]][[2]][[2]][[1]] <- x[[2]][[2]][[2]][[1]] + ex[[1]]
+x[[2]][[2]][[2]][[2]] <- 0
+# ex[[2]] is lost
+identical(explode_tree(x0), x)
+
+```
+
+Finally, we need to calculate the magnitude of the tree.
+
+```r
+
+calc_magnitude <- function(tree) {
+  if (is.numeric(tree[[1]])) {
+    left <- tree[[1]]
+  } else {
+    left <- calc_magnitude(tree[[1]])
+  }
+  if (is.numeric(tree[[2]])) {
+    right <- tree[[2]]
+  } else {
+    right <- calc_magnitude(tree[[2]])
+  }
+  out <- 3 * left + 2 * right
+  return(out)
+}
+
+x <- list(list(1, 2), list(list(3, 4), 5))
+calc_magnitude(x) == 143
+
+```
+
+put it all together and we get
+
+```r
 
 
+reduce_tree <- function(tree) {
+  check <- TRUE
+  while (check) {
+    # explode all pairs nested 4 levels down
+    tree <- explode_tree(tree)
+    # split all values that are > 9 into pairs
+    split_tree <- split_once(tree)$tree
+    if (!identical(split_tree, tree)) {
+      tree <- split_tree
+    } else {
+      check <- FALSE
+    }
+    # once a single split has been made, we have to check whether further explosions are required
+  }
+  return(tree)
+}
 
+# [[[[4,3],4],4],[7,[[8,4],9]]] + [1,1]
+# creates [[[[0,7],4],[[7,8],[6,0]]],[8,1]]
+sn1 <- list(list(list(list(4, 3), 4), 4), list(7, list(list(8, 4), 9)))
+sn2 <- list(1, 1)
+ans <- list(list(list(list(0, 7), 4), list(list(7, 8), list(6, 0))), list(8, 1))
+identical(reduce_tree(list(sn1, sn2)), ans)
 
+add_snail_numbers <- function(snail_list, path = NULL) {
+  if (!is.null(path)) snail_list <- snail_to_list(readLines(path))
+  out <- snail_list[[1]]
+  for (i in 2:length(snail_list)) {
+    out <- reduce_tree(list(out, snail_list[[i]]))
+  }
+  return(out)
+}
+
+input <- list(
+  list(1, 1),
+  list(2, 2),
+  list(3, 3),
+  list(4, 4)
+)
+output <- list(list(list(list(1, 1), list(2, 2)), list(3, 3)), list(4, 4))
+
+identical(add_snail_numbers(input), output)
+
+input <- list(
+  list(1, 1),
+  list(2, 2),
+  list(3, 3),
+  list(4, 4),
+  list(5, 5)
+)
+output <- list(list(list(list(3, 0), list(5, 3)), list(4, 4)), list(5, 5))
+
+identical(add_snail_numbers(input), output)
+
+input <- list(
+  list(1, 1),
+  list(2, 2),
+  list(3, 3),
+  list(4, 4),
+  list(5, 5),
+  list(6, 6)
+)
+output <- list(list(list(list(5, 0), list(7, 4)), list(5, 5)), list(6, 6))
+
+identical(add_snail_numbers(input), output)
+
+snail_to_list <- function(chr) {
+  if (length(chr) == 1) {
+    chr <- gsub("\\[", "list(", chr)
+    chr <- gsub("\\]", ")", chr)
+    out <- eval(parse(text = chr))
+  } else {
+    out <- lapply(chr, snail_to_list)
+  }
+  return(out)
+}
+
+output <- snail_to_list("[[[[8,7],[7,7]],[[8,6],[7,7]]],[[[0,7],[6,6]],[8,7]]]")
+identical(add_snail_numbers(path = "day18_input_test2.txt"), output)
+
+output <- snail_to_list("[[[[6,6],[7,6]],[[7,7],[7,0]]],[[[7,7],[7,7]],[[7,8],[9,9]]]]")
+identical(add_snail_numbers(path = "day18_input_test.txt"), output)
+calc_magnitude(add_snail_numbers(path = "day18_input_test.txt")) == 4140
+
+calc_magnitude(add_snail_numbers(path = "day18_input.txt")) == 4120 # text
+# 100 numbers
+```
+
+The second question is, what's the largest magnitude from adding only two of the numbers? note that x + y and y + x can produce different results...
+so we just have to try all permutations...100 * 99 = 9900 values
+
+```r
+
+calc_max_magnitude <- function(path) {
+  snail_numbers <- snail_to_list(readLines(path))
+  grid <- expand.grid(n1 = seq_len(length(snail_numbers)), n2 = seq_len(length(snail_numbers)))
+  drop <- which(grid$n1 == grid$n2)
+  grid <- grid[-drop,]
+  grid$mags <- NA
+  for (i in seq_len(nrow(grid))) {
+    this_pair <- snail_numbers[c(grid$n1[i], grid$n2[i])]
+    grid$mag[i] <- calc_magnitude(add_snail_numbers(this_pair))
+    if (i %% 100 == 0) cat(i, "\n")
+  }
+  return(max(grid$mag))
+}
+
+calc_max_magnitude("day18_input_test.txt") == 3993
+calc_max_magnitude("day18_input.txt") == 4725
+
+```
 
 
 
@@ -903,7 +2110,7 @@ median(d$patch_score, na.rm = TRUE) == 2165057169
 
 
 
-# Day 9: Smoke Basins
+# Day 9: Smoke Basin
 
 https://adventofcode.com/2021/day/9
 
@@ -1084,7 +2291,7 @@ points(479, 96987919, pch = 20)
 ```
 
 
-# Day 6: Lanternfish population growth
+# Day 6: Lanternfish
 
 https://adventofcode.com/2021/day/6
 
@@ -1230,6 +2437,8 @@ sim_lanternfish_v4("day6_input.txt", n_days = 256) == 1728611055389
 
 # Day 5: Hydrothermal Venture
 
+https://adventofcode.com/2021/day/5
+
 We have the start- and stop-coordinates for lines of hydrothermal vents in discrete x-y space, in the format of
 
 ```
@@ -1319,7 +2528,9 @@ map_danger(dat$start, dat$stop, include_diag = TRUE) == 20898
 
 
 
-# Day 4: Bingo with a Giant Squid
+# Day 4: Giant Squid
+
+https://adventofcode.com/2021/day/4
 
 For a given set of 5x5 bingo boards, find the board that will have the first "bingo" as you proceed through a given sequence of bingo draws. Also find the board that will have the *last* bingo through these draws, a guaranteed loser.
 
@@ -1399,7 +2610,9 @@ score_board(dat$board_array[,,92], dat$draws[1:83]) == 30070
 
 
 
-# Day 3: Binary Diagnostics
+# Day 3: Binary Diagnostic
+
+https://adventofcode.com/2021/day/3
 
 Here we work with a list of binary numbers, all the same length. In Part One, we calculate two new numbers, `gamma` and `epsilon`. Each bit in `gamma` is the most-common bit in the corresponding position of the list. Each bit in `epsilon` is the least-common bit. For a given list, the product of gamma and epsilon is our target. In Part Two, we must find the unique number in the list (the "oxygen consumption score") that contains the most-common bit in the first position, in the second position, and so forth, and find the unique number in the list (the "CO2 scrubber score") that contains the least-common bit in the first position, in the second position, and so forth. Our target in Part Two is again the product of these two numbers.
 
@@ -1464,6 +2677,8 @@ calc_oxygen_co2("day3_input.txt") == 4432698
 
 
 # Day 2: Dive!
+
+https://adventofcode.com/2021/day/2
 
 We calculate our horizonal and vertical position after applying a list of text commands. In Part One, the command `forward 8` just means add 8 to our horizonal displacement, `up 8` means a decrease in depth by 8, and `down 2` an increase in depth of 2. In Part Two, we modify this interpretation: now `up 8` means decrease a quantity called *aim* by 8, and `down 2` means increase aim by 2. When we apply a `forward` command, we increase our horizonal displacement by the number given, and change our vertical displacement by the horizonal change times the aim.
 
@@ -1546,6 +2761,8 @@ points(vectors_bad, type = "l", col = "red")
 
 
 # Day 1: Sonar Sweep
+
+https://adventofcode.com/2021/day/1
 
 For a list of measurements, how many are larger than the previous measurement in the list? For Part One, we are given the list of measurements. For Part Two, we construct the list from a longer list, as the rolling sum of every group of three measures.
 
