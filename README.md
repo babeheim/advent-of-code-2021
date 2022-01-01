@@ -1,10 +1,4 @@
 
-# Links
-
-https://adventofcode.com/
-https://carbon.now.sh/ to show off code
-https://www.reddit.com/r/adventofcode/
-
 ## Solvers and Solutions
 
 - [Reddit Megathreads](https://www.reddit.com/r/adventofcode/wiki/solution_megathreads)
@@ -22,12 +16,6 @@ https://www.reddit.com/r/adventofcode/
 - Day 19 using linear regression to infer rotation: https://twitter.com/mccorvie/status/1472684849123102720
 - day 24 using an optimizer https://twitter.com/tipadaknife/status/1474450242842017799
 - day 25 in R https://twitter.com/TeaStats/status/1475092918746689541
-
-# Key notes
-
-https://en.wikipedia.org/wiki/Memoization
-https://en.m.wikipedia.org/wiki/Dynamic_programming
-https://en.m.wikipedia.org/wiki/Dijkstra%27s_algorithm
 
 
 # Day 25: Sea Cucumber
@@ -356,8 +344,6 @@ for (i in 1:1000) {
   stopifnot(run_monadR("day24_input_refactor.R", seed)$z == x)
   if (i %% 100 == 0) print(i)
 }
-
-# how the heck did i get away with treatig z as numeric??
 
 ```
 
