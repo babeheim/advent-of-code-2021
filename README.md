@@ -1,5 +1,5 @@
 
-## Solvers and Solutions
+# Solvers and Solutions
 
 - [Reddit Megathreads](https://www.reddit.com/r/adventofcode/wiki/solution_megathreads)
 - [Hvitfeldt's solutions](https://emilhvitfeldt.github.io/rstats-adventofcode/2021.html)
@@ -18,92 +18,66 @@
 - day 25 in R https://twitter.com/TeaStats/status/1475092918746689541
 
 
+
 # Day 25: Sea Cucumber
 
 https://adventofcode.com/2021/day/25
 
-Every step, the east-facing herd all considers whether there's an open space to the east and, if its free, they all move at once. Then the south-facing herd all considers whether there's an open space to the south and, if its free, they all move at once. It's a toroid so those on the bottom of the map consider the top of the map as their next spot, and those on the far east consider the western-most spot their next spot. The question is, what is the first step on which no sea cucumbers move?
+We have a grid of agents, some are "east-facing" and some are "south-facing", on a toroid. Each time step, the east-facing individuals each consider whether there's an open space in front of them and, if it's free, they all move. Then the south-facing individuals each consider whether there's an open space to the south and, if its free, they all move. It's a toroid, so those on the bottom of the map consider the top of the map as their next spot, and those on the far east consider the western-most spot their next spot. The goal is to find the first step on which no sea cucumbers move?
 
-The strategy I think I'll do is a matrix shuffle.
-
-
-```r
-
-A <- "...>>>>>..."
-
-# initalize A_next from turn 0
-A_next <- strsplit(A, "")[[1]]
-
-n_turns <- 10
-
-for (i in seq_len(n_turns)) {
-  A_now <- A_next
-  A_want <- A_now[c(length(A_now), 1:(length(A_now)-1))]
-  works <- which(A_want == ">" & A_now == ".")
-  from <- works - 1L
-  if (any(from == 0L)) from[which(from == 0L)] <- length(A_now)
-  A_next <- A_now
-  A_next[works] <- ">"
-  A_next[from] <- "."
-}
-
-```
-
-Now we just need to do this in two dimensions...
+The movement of each agent is fairly simple, so I'll use a matrix shuffle.
 
 ```r
 
-rm(list = ls())
+sim_cucumbers <- function(file, verbose = FALSE) {
+  A_raw <- readLines(file)
+  A <- matrix(NA, ncol = nchar(A_raw[1]), nrow = length(A_raw))
+  for (row in seq_len(length(A_raw))) A[row,] <- strsplit(A_raw[row], "")[[1]]
 
-A_raw <- readLines("day25_input.txt")
-A <- matrix(NA, ncol = nchar(A_raw[1]), nrow = length(A_raw))
-for (row in seq_len(length(A_raw))) A[row,] <- strsplit(A_raw[row], "")[[1]]
+  turn <- 0
+  right_works_i <- 1 # dummy values
+  down_works_i <- 1 # dummy values
 
-turn <- 0
-right_works_i <- 1 # dummy values
-down_works_i <- 1 # dummy values
+  while(length(right_works_i) > 0 | length(down_works_i) > 0) {
 
-stop_turn <- 1
+    turn <- turn + 1
 
-while(length(right_works_i) > 0 | length(down_works_i) > 0) {
-
-  turn <- turn + 1
-
-  A_propose_right <- A[, c(ncol(A), 1:(ncol(A)-1))]
-  right_works_i <- which(A == "." & A_propose_right == ">")
-  if (length(right_works_i) > 0) {
-    right_works_j <- (right_works_i - 1) %% nrow(A) + 1
-    right_works_k <- (right_works_i - 1) %/% nrow(A) + 1
-    right_from_k <- right_works_k - 1L
-    if (any(right_from_k == 0L)) right_from_k[which(right_from_k == 0L)] <- ncol(A)
-    for (i in seq_along(right_works_i)) {
-      A[right_works_j[i], right_works_k[i]] <- ">"
-      A[right_works_j[i], right_from_k[i]] <- "."
+    A_propose_right <- A[, c(ncol(A), 1:(ncol(A)-1))]
+    right_works_i <- which(A == "." & A_propose_right == ">")
+    if (length(right_works_i) > 0) {
+      right_works_j <- (right_works_i - 1) %% nrow(A) + 1
+      right_works_k <- (right_works_i - 1) %/% nrow(A) + 1
+      right_from_k <- right_works_k - 1L
+      if (any(right_from_k == 0L)) right_from_k[which(right_from_k == 0L)] <- ncol(A)
+      for (i in seq_along(right_works_i)) {
+        A[right_works_j[i], right_works_k[i]] <- ">"
+        A[right_works_j[i], right_from_k[i]] <- "."
+      }
+      if (verbose) print(paste("shifted", length(right_works_i), "right"))
     }
-    print(paste("shifted", length(right_works_i), "right"))
-  }
 
-  A_propose_down <- A[c(nrow(A), 1:(nrow(A)-1)), ]
-  down_works_i <- which(A == "." & A_propose_down == "v")
-  if (length(down_works_i) > 0) {
-    down_works_j <- (down_works_i - 1) %% nrow(A) + 1
-    down_works_k <- (down_works_i - 1) %/% nrow(A) + 1
-    down_from_j <- down_works_j - 1L
-    if (any(down_from_j == 0L)) down_from_j[which(down_from_j == 0L)] <- nrow(A)
-    for (i in seq_along(down_works_i)) {
-      A[down_works_j[i], down_works_k[i]] <- "v"
-      A[down_from_j[i], down_works_k[i]] <- "."
+    A_propose_down <- A[c(nrow(A), 1:(nrow(A) - 1)), ]
+    down_works_i <- which(A == "." & A_propose_down == "v")
+    if (length(down_works_i) > 0) {
+      down_works_j <- (down_works_i - 1) %% nrow(A) + 1
+      down_works_k <- (down_works_i - 1) %/% nrow(A) + 1
+      down_from_j <- down_works_j - 1L
+      if (any(down_from_j == 0L)) down_from_j[which(down_from_j == 0L)] <- nrow(A)
+      for (i in seq_along(down_works_i)) {
+        A[down_works_j[i], down_works_k[i]] <- "v"
+        A[down_from_j[i], down_works_k[i]] <- "."
+      }
+      if (verbose) print(paste("shifted", length(down_works_j), "down"))
     }
-    print(paste("shifted", length(down_works_j), "down"))
+
+    if (verbose) print(paste("turn", turn, "complete"))
+
   }
-
-  print(paste("turn", turn, "complete"))
-
+  return(turn)
 }
 
-# turn == 58 # practice
-turn == 563
-
+sim_cucumbers("day25_input_test.txt") == 58
+sim_cucumbers("day25_input.txt") == 563
 
 ```
 
@@ -112,9 +86,6 @@ turn == 563
 # Day 24: Arithmetic Logic Unit
 
 https://adventofcode.com/2021/day/24
-
-
-here we code the ALU for holding the 
 
 ```r
 
@@ -349,8 +320,6 @@ for (i in 1:1000) {
 
 With the code refactored, we can finally see the structure of the MONAD program. We start with z = 0. Each digit of input serves as a logical gate. The first three gates, x1 to x3, MUST be 1. The fourth could be 1 or 0
 
-turn all gates off!
-
 ```r
 
 # 12934998949199 - the biggest number possible
@@ -392,13 +361,7 @@ stopifnot(x14 == 0)
 z <- (z13 %/% 26L) + x14 * ((z13 %/% 26L) * 25L + ins[14] + 9L)
 stopifnot(z == 0)
 
-
-
 ```
-
-
-
-
 
 
 
@@ -419,6 +382,7 @@ A spatial puzzle! We have to instruct amphipods of four types of amphipod, A, B,
 Amphipods can only move into spaces that are empty and can move at most twice (once to the empty hallway, and once into their correct room. The cost of moving once space for an A amphipod is 1, for a B is 10, for a C is 100 and for a D is 1000, and we want to assort them using a minimal cost.
 
 
+
 # Day 22: Reactor Reboot
 
 https://adventofcode.com/2021/day/22
@@ -430,12 +394,107 @@ the 'turn off' subset only flips 1s to 0s
 
 I solved part 1 by 'brute force' modeling of each individual voxel in each box. But the part 2 scales are so vast there's no way to represent individual voxels in memory. The question is, how to properly calculate the result without having to store so much in memory?
 
+```r
+
+calc_reactor_volume_v1 <- function(path, init_stage = TRUE){
+  raw <- readLines(path)
+  op <- data.frame(
+    turn_on = logical(),
+    xmin = character(),
+    xmax = character(),
+    ymin = character(),
+    ymax = character(),
+    zmin = character(),
+    zmax = character(),
+    reactor_delta = integer()
+  )
+  for (i in seq_along(raw)) {
+    add <- list()
+    add$turn_on <- grepl("^on\\s", raw[i])
+    raw_i <- substr(raw[i], as.numeric(gregexpr("\\s", raw[i])) + 1, nchar(raw[i]))
+    raw_i_vec <- strsplit(raw_i, ",")[[1]]
+    add$xmin <- substr(raw_i_vec[1], regexpr("x=", raw_i_vec[1]) + 2, regexpr("\\.\\.", raw_i_vec[1])-1)
+    add$xmax <- substr(raw_i_vec[1], regexpr("\\.\\.", raw_i_vec[1]) + 2, nchar(raw_i_vec[1]))
+
+    add$ymin <- substr(raw_i_vec[2], regexpr("y=", raw_i_vec[2]) + 2, regexpr("\\.\\.", raw_i_vec[2]) - 1)
+    add$ymax <- substr(raw_i_vec[2], regexpr("\\.\\.", raw_i_vec[2]) + 2, nchar(raw_i_vec[2]))
+
+    add$zmin <- substr(raw_i_vec[3], regexpr("z=", raw_i_vec[3]) + 2, regexpr("\\.\\.", raw_i_vec[3]) - 1)
+    add$zmax <- substr(raw_i_vec[3], regexpr("\\.\\.", raw_i_vec[3]) + 2, nchar(raw_i_vec[3]))
+    op <- dplyr::bind_rows(op, add)
+  }
+
+  op$xmin <- as.numeric(op$xmin)
+  op$xmax <- as.numeric(op$xmax)
+  op$ymin <- as.numeric(op$ymin)
+  op$ymax <- as.numeric(op$ymax)
+  op$zmin <- as.numeric(op$zmin)
+  op$zmax <- as.numeric(op$zmax)
+
+  if (init_stage) {
+    # gonna have to modify the addressing: -50 (the lowest value) becomes the 1st entry, +50 (the highest value) becomes the 101st entry on each margin to the array
+    rctr_xmin <- rctr_ymin <- rctr_zmin <- (-50)
+    rctr_xmax <- rctr_ymax <- rctr_zmax <- (50)
+  } else {
+    rctr_xmin <- min(op$xmin)
+    rctr_xmax <- max(op$xmax)
+    rctr_ymin <- min(op$ymin)
+    rctr_ymax <- max(op$ymax)
+    rctr_zmin <- min(op$zmin)
+    rctr_zmax <- max(op$zmax)
+  }
+
+  op$xmin <- op$xmin - rctr_xmin + 1
+  op$xmax <- op$xmax - rctr_xmin + 1
+  op$ymin <- op$ymin - rctr_ymin + 1
+  op$ymax <- op$ymax - rctr_ymin + 1
+  op$zmin <- op$zmin - rctr_zmin + 1
+  op$zmax <- op$zmax - rctr_zmin + 1
+
+  xdim <- rctr_xmax - rctr_xmin + 1
+  ydim <- rctr_ymax - rctr_ymin + 1
+  zdim <- rctr_zmax - rctr_zmin + 1
+
+  rctr <- array(0, dim = c(xdim, ydim, zdim))
+
+  for (i in seq_len(nrow(op))) {
+    x <- op$xmin[i]:op$xmax[i]
+    y <- op$ymin[i]:op$ymax[i]
+    z <- op$zmin[i]:op$zmax[i]
+    if (init_stage) {
+      x <- intersect(x, 1:101)
+      y <- intersect(y, 1:101)
+      z <- intersect(z, 1:101)
+    }
+    if (length(x) > 0 & length(y) > 0 & length(z) > 0) {
+      rctr[x, y, z] <- as.numeric(op$turn_on[i])
+    }
+    # if (i %% 10 == 0) print(i)
+  }
+
+  return(sum(rctr))
+
+}
+
+calc_reactor_volume_v1("day22_input_test.txt") == 39
+calc_reactor_volume_v1("day22_input_test2.txt") == 590784
+calc_reactor_volume_v1("day22_input_test3.txt") == 474140
+calc_reactor_volume_v1("day22_input.txt") == 596989
+
+calc_reactor_volume_v1("day22_input_test2.txt", init_stage = FALSE) # memory limit reached
+calc_reactor_volume_v1("day22_input_test3.txt", init_stage = FALSE) # memory limit reached
+calc_reactor_volume_v1("day22_input.txt", init_stage = FALSE) # memory limit reached
+
+xdim * ydim * zdim == 1030301 # init stage = TRUE
+xdim * ydim * zdim == 14,125,876,564,443,248 # test data 3, init stage = FALSE, vector too large!
+xdim * ydim * zdim == 7246728058247370 # real data, init stage = FALSE
+
+```
+
 
 ```r
 
-rm(list = ls())
-
-calc_reactor_volume <- function(path, init_stage = TRUE) {
+calc_reactor_volume <- function(path, init_stage = TRUE, verbose = FALSE) {
 
   raw <- readLines(path)
 
@@ -512,14 +571,12 @@ calc_reactor_volume <- function(path, init_stage = TRUE) {
   op$xlen_j <- op$ylen_j <- op$zlen_j <- NA
 
   drop <- which(is.na(op$xlen) | is.na(op$ylen) | is.na(op$zlen))
-  if (length(drop) > 0) op <- op[-drop,,drop = FALSE]
-
-  verbose <- FALSE
+  if (length(drop) > 0) op <- op[-drop, , drop = FALSE]
 
   ########
 
   for (j in seq_len(nrow(op))) {
-    print(paste("evaluating box", j))
+    if (verbose) print(paste("evaluating box", j))
     op$reactor_delta[j] <- 0
     if (op$turn_on[j]) {
       jth_volume <- op$xlen[j] * op$ylen[j] * op$zlen[j]
@@ -540,7 +597,7 @@ calc_reactor_volume <- function(path, init_stage = TRUE) {
         remaining <- which(seq_len(nrow(op)) > j & op$xlen_j > 0 & op$ylen_j > 0 & op$zlen_j > 0)
         n_boxes <- length(remaining)
         if (n_boxes > 0) {
-          print(paste(n_boxes, "boxes remaining to consider overlaps"))
+          if (verbose) print(paste(n_boxes, "boxes remaining to consider overlaps"))
           combos <- expand.grid(rep(list(c(FALSE, TRUE)), n_boxes)) # there are too many combinations...
           combos <- combos[-1,,drop = FALSE]
           for (i in seq_len(nrow(combos))) {
@@ -561,10 +618,10 @@ calc_reactor_volume <- function(path, init_stage = TRUE) {
           }
         }
       }
-      print(paste("total volume is", jth_volume))
-      print(paste("of that,", jth_overlap, "is overlapping with subsequent boxes"))
+      if (verbose) print(paste("total volume is", jth_volume))
+      if (verbose) print(paste("of that,", jth_overlap, "is overlapping with subsequent boxes"))
       op$reactor_delta[j] <- jth_volume - jth_overlap
-      print(paste("so reactor_delta[j] is", op$reactor_delta[j]))
+      if (verbose) print(paste("so reactor_delta[j] is", op$reactor_delta[j]))
     }
   }
 
@@ -580,7 +637,6 @@ calc_reactor_volume("day22_input_test3.txt", init_stage = FALSE) == 275851493628
 calc_reactor_volume("day22_input.txt", init_stage = FALSE) == 1160011199157381
 
 ```
-
 
 
 
@@ -634,31 +690,37 @@ p2_score_turn <- function(t, i = 8, m = 10) {
   }
 }
 
-# test data: p1 starts at 4, p2 starts at 8
-# real data: p1 starts at 1, p2 starts at 2
-p1_init <- 1; p2_init <- 2
-turns <- 2:1000
-p1_total_score <- p2_total_score <- rep(NA, length(turns) + 1)
-p1_total_score[1] <- p1_score_turn(1, i = p1_init)
-p2_total_score[1] <- 0
-for (turn in turns) {
-  p1_total_score[turn] <- p1_total_score[turn - 1] + p1_score_turn(turn, i = p1_init)
-  p2_total_score[turn] <- p2_total_score[turn - 1] + p2_score_turn(turn, i = p2_init)
+play_deterministic_game <- function(p1_init, p2_init) {
+  turns <- 2:1000
+  p1_total_score <- p2_total_score <- rep(NA, length(turns) + 1)
+  p1_total_score[1] <- p1_score_turn(1, i = p1_init)
+  p2_total_score[1] <- 0
+  for (turn in turns) {
+    p1_total_score[turn] <- p1_total_score[turn - 1] + p1_score_turn(turn, i = p1_init)
+    p2_total_score[turn] <- p2_total_score[turn - 1] + p2_score_turn(turn, i = p2_init)
+  }
+  i_win <- min(which(p1_total_score >= 1000 | p2_total_score >= 1000))
+  out <- list(
+    i_win = i_win,
+    p1_total_score = p1_total_score[i_win],
+    p2_total_score = p2_total_score[i_win],
+    target = i_win * 3 * min(c(p1_total_score[i_win], p2_total_score[i_win]))
+  )
 }
 
-i_win <- min(which(p1_total_score >= 1000 | p2_total_score >= 1000))
-
 # test data:
-i_win == 331
-p1_total_score[i_win] == 1000
-p2_total_score[i_win] == 745
-i_win * 3 * min(c(p1_total_score[i_win], p2_total_score[i_win])) == 739785
+res <- play_deterministic_game(4, 8)
+res$i_win == 331
+res$p1_total_score == 1000
+res$p2_total_score == 745
+res$target == 739785
 
 # real data:
-i_win == 364
-p1_total_score[i_win] == 548
-p2_total_score[i_win] == 1007
-i_win * 3 * min(c(p1_total_score[i_win], p2_total_score[i_win])) == 598416
+res <- play_deterministic_game(1, 2)
+res$i_win == 364
+res$p1_total_score == 548
+res$p2_total_score == 1007
+res$target == 598416
 
 ```
 
@@ -668,70 +730,68 @@ Ok, now we use a three-sided "Dirac die", and must explore *all possible outcome
 
 ```r
 
-rm(list = ls())
+play_stochastic_game <- function(p1_pos, p2_pos, verbose = FALSE) {
 
-n_turns <- 30
-winning_score <- 21
-verbose <- FALSE
+  p1_pos <- as.integer(p1_pos)
+  p2_pos <- as.integer(p2_pos)
 
-# initialize an empty array to store timeline counts for each turn
-A <- array(c(0L, 0L, 0L, 0L), dim = c(10, winning_score, 10, winning_score, n_turns + 1))
+  n_turns <- 30
+  winning_score <- 21
 
-# pos test data: 4L and 8L
-# pos real data: 1L and 2L
+  # initialize an empty array to store timeline counts for each turn
+  A <- array(c(0L, 0L, 0L, 0L), dim = c(10, winning_score, 10, winning_score, n_turns + 1))
 
-# initialize 'turn 0' before the first roll
-p1_pos <- 4L
-p1_score <- 0L
-p2_pos <- 8L
-p2_score <- 0L
-turn <- 0
-A[p1_pos, p1_score + 1, p2_pos, p2_score + 1, turn + 1] <- 1
-print(paste("before first turn, player 1 on", p1_pos, "with score", p1_score, "and player 2 on", p2_pos, "with score", p2_score))
+  # initialize 'turn 0' before the first roll
+  p1_score <- 0L
+  p2_score <- 0L
+  turn <- 0
+  A[p1_pos, p1_score + 1, p2_pos, p2_score + 1, turn + 1] <- 1
+  if (verbose) print(paste("before first turn, player 1 on", p1_pos, "with score", p1_score, "and player 2 on", p2_pos, "with score", p2_score))
 
-new_winners <- rep(0L, n_turns)
+  new_winners <- rep(0L, n_turns)
 
-for (turn in seq_len(n_turns)) {
-  print(paste("playing turn", turn))
-  for (roll_one in 1:3) {
-    for (roll_two in 1:3) {
-      for (roll_three in 1:3) {
-        roll <- roll_one + roll_two + roll_three
-        if (verbose) print(paste("turn", turn, "rolled", roll))
-        for (p1_last_pos in 1:10) {
-          for (p1_last_score in 0:(winning_score - 1)) {
-            for (p2_last_pos in 1:10) {
-              for (p2_last_score in 0:(winning_score - 1)) {
-                if (turn %% 2L != 0) {
-                  p1_pos <- (p1_last_pos + roll - 1L) %% 10L + 1L
-                  p1_score <- p1_last_score + p1_pos
-                  p2_pos <- p2_last_pos
-                  p2_score <- p2_last_score
-                  if (p1_score < winning_score) {
-                    if (A[p1_last_pos, p1_last_score + 1, p2_last_pos, p2_last_score + 1, (turn + 1) - 1] > 0L) {
-                      if (verbose) print(paste("after turn", turn, ", player 1 on", p1_pos, "with score", p1_score))
-                      A[p1_pos, p1_score + 1, p2_pos, p2_score + 1, turn + 1] <- A[p1_pos, p1_score + 1, p2_pos, p2_score + 1, turn + 1] + A[p1_last_pos, p1_last_score + 1, p2_last_pos, p2_last_score + 1, (turn + 1) - 1]
+  for (turn in seq_len(n_turns)) {
+    if (verbose) print(paste("playing turn", turn))
+    for (roll_one in 1:3) {
+      for (roll_two in 1:3) {
+        for (roll_three in 1:3) {
+          roll <- roll_one + roll_two + roll_three
+          if (verbose) print(paste("turn", turn, "rolled", roll))
+          for (p1_last_pos in 1:10) {
+            for (p1_last_score in 0:(winning_score - 1)) {
+              for (p2_last_pos in 1:10) {
+                for (p2_last_score in 0:(winning_score - 1)) {
+                  if (turn %% 2L != 0) {
+                    p1_pos <- (p1_last_pos + roll - 1L) %% 10L + 1L
+                    p1_score <- p1_last_score + p1_pos
+                    p2_pos <- p2_last_pos
+                    p2_score <- p2_last_score
+                    if (p1_score < winning_score) {
+                      if (A[p1_last_pos, p1_last_score + 1, p2_last_pos, p2_last_score + 1, (turn + 1) - 1] > 0L) {
+                        if (verbose) print(paste("after turn", turn, ", player 1 on", p1_pos, "with score", p1_score))
+                        A[p1_pos, p1_score + 1, p2_pos, p2_score + 1, turn + 1] <- A[p1_pos, p1_score + 1, p2_pos, p2_score + 1, turn + 1] + A[p1_last_pos, p1_last_score + 1, p2_last_pos, p2_last_score + 1, (turn + 1) - 1]
+                      }
+                    } else {
+                      if (A[p1_last_pos, p1_last_score + 1, p2_last_pos, p2_last_score + 1, (turn + 1) - 1] > 0L) {
+                        if (verbose) print(paste("after turn", turn, ", player 1 wins with score", p1_score))
+                        new_winners[turn] <- new_winners[turn] + A[p1_last_pos, p1_last_score + 1, p2_last_pos, p2_last_score + 1, (turn + 1) - 1]
+                      }
                     }
                   } else {
-                    if (A[p1_last_pos, p1_last_score + 1, p2_last_pos, p2_last_score + 1, (turn + 1) - 1] > 0L) {
-                      if (verbose) print(paste("after turn", turn, ", player 1 wins with score", p1_score))
-                      new_winners[turn] <- new_winners[turn] + A[p1_last_pos, p1_last_score + 1, p2_last_pos, p2_last_score + 1, (turn + 1) - 1]
-                    }
-                  }
-                } else {
-                  p1_pos <- p1_last_pos
-                  p1_score <- p1_last_score
-                  p2_pos <- (p2_last_pos + roll - 1L) %% 10L + 1L
-                  p2_score <- p2_last_score + p2_pos
-                  if (p2_score < winning_score) {
-                    if (A[p1_last_pos, p1_last_score + 1, p2_last_pos, p2_last_score + 1, (turn + 1) - 1] > 0L) {
-                      if (verbose) print(paste("after turn", turn, ", player 2 on", p2_pos, "with score", p2_score))
-                      A[p1_pos, p1_score + 1, p2_pos, p2_score + 1, turn + 1] <- A[p1_pos, p1_score + 1, p2_pos, p2_score + 1, turn + 1] + A[p1_last_pos, p1_last_score + 1, p2_last_pos, p2_last_score + 1, (turn + 1) - 1]
-                    }
-                  } else {
-                    if (A[p1_last_pos, p1_last_score + 1, p2_last_pos, p2_last_score + 1, (turn + 1) - 1] > 0L) {
-                      if (verbose) print(paste("after turn", turn, ", player 2 wins with score", p2_score))
-                      new_winners[turn] <- new_winners[turn] + A[p1_last_pos, p1_last_score + 1, p2_last_pos, p2_last_score + 1, (turn + 1) - 1]
+                    p1_pos <- p1_last_pos
+                    p1_score <- p1_last_score
+                    p2_pos <- (p2_last_pos + roll - 1L) %% 10L + 1L
+                    p2_score <- p2_last_score + p2_pos
+                    if (p2_score < winning_score) {
+                      if (A[p1_last_pos, p1_last_score + 1, p2_last_pos, p2_last_score + 1, (turn + 1) - 1] > 0L) {
+                        if (verbose) print(paste("after turn", turn, ", player 2 on", p2_pos, "with score", p2_score))
+                        A[p1_pos, p1_score + 1, p2_pos, p2_score + 1, turn + 1] <- A[p1_pos, p1_score + 1, p2_pos, p2_score + 1, turn + 1] + A[p1_last_pos, p1_last_score + 1, p2_last_pos, p2_last_score + 1, (turn + 1) - 1]
+                      }
+                    } else {
+                      if (A[p1_last_pos, p1_last_score + 1, p2_last_pos, p2_last_score + 1, (turn + 1) - 1] > 0L) {
+                        if (verbose) print(paste("after turn", turn, ", player 2 wins with score", p2_score))
+                        new_winners[turn] <- new_winners[turn] + A[p1_last_pos, p1_last_score + 1, p2_last_pos, p2_last_score + 1, (turn + 1) - 1]
+                      }
                     }
                   }
                 }
@@ -741,31 +801,24 @@ for (turn in seq_len(n_turns)) {
         }
       }
     }
+    if (sum(A[ , , , , turn + 1]) == 0L) break()
   }
-  if (sum(A[ , , , , turn + 1]) == 0L) break()
+  out <- list(
+    p1_winners = sum(new_winners[seq(1, n_turns, 2)]),
+    p2_winners = sum(new_winners[seq(2, n_turns, 2)])
+  )
 }
 
-# consistency checks
-sum(A[ , , , , 0 + 1]) == 27^0
-sum(A[ , , , , 1 + 1]) == 27^1
-sum(A[ , , , , 2 + 1]) == 27^2
-sum(A[ , , , , 3 + 1]) == 27^3
-sum(A[ , , , , 4 + 1]) == 27^4
-sum(A[ , , , , 5 + 1]) + new_winners[5] == 27^5 # works for the first one...
-
-p1_winners <- sum(new_winners[seq(1, n_turns, 2)])
-p2_winners <- sum(new_winners[seq(2, n_turns, 2)])
-
 # test input
-p1_winners == 444356092776315
-p2_winners == 341960390180808
-
+res <- play_stochastic_game(4, 8)
+res$p1_winners == 444356092776315
+res$p2_winners == 341960390180808
 # 57% chance of p1 winning
 
 # real input
-p1_winners == 27674034218179
-p2_winners == 17242469745088
-
+res <- play_stochastic_game(1, 2)
+res$p1_winners == 27674034218179
+res$p2_winners == 17242469745088
 # 62% chance of p1 winning
 
 ```
@@ -1266,8 +1319,6 @@ explode_tree <- function(tree) {
   }
   return(tree)
 }
-
-# what happens if two explosions happen right next to each other?? you'd add the first exploded value to the second pair, but you would then EXPLODE the second pair before splitting per the instructions
 
 # explosion
 x0 <- list(list(list(list(list(9, 8), 1), 2), 3), 4)
