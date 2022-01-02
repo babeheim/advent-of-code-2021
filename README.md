@@ -1711,16 +1711,24 @@ Given a two-dimensional array of integers, find the up-down-left-right path that
 
 ```r
 
-calc_least_cost_path <- function(path, use_full = FALSE, verbose = FALSE) {
+find_grid_neighbors <- function(index, n, m) {
+  index_j <- (index - 1) %% n + 1
+  index_k <- (index - 1) %/% n + 1
+  neighbors_j <- index_j + c(0, 0, -1, 1)
+  neighbors_k <- index_k + c(-1, 1, 0, 0)
+  neighbors_i <- neighbors_j + (neighbors_k - 1) * n
+  drop <- which(neighbors_j < 1 | neighbors_j > n | neighbors_k < 1 | neighbors_k > m)
+  if (length(drop) > 0) neighbors_i <- neighbors_i[-drop]
+  return(neighbors_i)
+}
 
-  raw <- readLines(path)
-
-  # load first tile
+calc_least_cost_path <- function(file, use_full = FALSE, verbose = FALSE, store_path = FALSE) {
+  # load cost data
+  raw <- readLines(file)
   n <- length(raw)
   m <- nchar(raw[1])
   cost <- matrix(NA, nrow = n, ncol = m)
   for (i in 1:length(raw)) cost[i,] <- as.numeric(strsplit(raw[i], "")[[1]])
-
   if (use_full) {
     # construct full map, 5x5 = 25 tiles
     # each tile increments all values by +1 down and +1 right
@@ -1737,52 +1745,42 @@ calc_least_cost_path <- function(path, use_full = FALSE, verbose = FALSE) {
     n <- nrow(cost)
     m <- ncol(cost)
   }
-
-  dist <- matrix(Inf, nrow = n, ncol = m)
-  dist[1] <- 0
-  i_to_check <- 1:(n * m)
-  path <- vector("list", length(dist)) # linear address
-  
-  # in an R matrix, the linear index i is top-left to bottom-right
-  # the j,k address is [(i - 1) %% nrow(m) + 1, (i - 1) %/% nrow(m) + 1]
-  # and the i address is j + (k - 1) * nrow(m)
-
-  while (length(i_to_check) > 0) {
-    if (verbose & length(i_to_check) %% ((n*m)/100) == 0) print(round(length(i_to_check)/(n*m), 2))
-    # identify the current minimum-distance entry in dist & discard
-    min_i <- i_to_check[which.min(dist[i_to_check])]
-    i_to_check <- setdiff(i_to_check, min_i)
+  # initialize algorithm components
+  min_dist <- rep(Inf, times = n*m)
+  min_dist[1] <- 0
+  visited <- rep(FALSE, times = n*m)
+  if (store_path) path <- vector("list", n*m)
+  # run search loop
+  while (!all(visited)) {
+    # ...find the unvisited node with the current shortest distance from starting node...
+    focal <- which(!visited & min_dist == min(min_dist[!visited]))[1]
+    if (verbose) cat("Visiting node", focal, "with current shortest distance", min_dist[focal], "\n")
     # identify neighbors in the grid in north-south, east-west relationships only
-    min_j <- (min_i - 1) %% n + 1
-    min_k <- (min_i - 1) %/% n + 1
-    neighbors_j <- min_j + c(0, 0, -1, 1)
-    neighbors_k <- min_k + c(-1, 1, 0, 0)
-    neighbors_i <- neighbors_j + (neighbors_k - 1) * n
-    drop <- which(neighbors_j < 1 | neighbors_j > n | neighbors_k < 1 | neighbors_k > m)
-    if (length(drop) > 0) neighbors_i <- neighbors_i[-drop]
-    neighbors_i <- intersect(neighbors_i, i_to_check)
+    neighbors_i <- find_grid_neighbors(focal, n, m)
     for (neighbor in neighbors_i) {
-      if (verbose) print(paste("evaluating neighbor", neighbor, "of current minimum", min_i))
-      if (cost[neighbor] + dist[min_i] < dist[neighbor]) {
-        dist[neighbor] <- cost[neighbor] + dist[min_i]
-        if (verbose) print(paste("dist to patch", neighbor, "now", dist[neighbor], "via patch", min_i))
-        path[[neighbor]] <- c(path[[min_i]], min_i)
-      } else {
-        if (verbose) print (paste("path to", neighbor, "unchanged"))
+      if (!visited[neighbor]) {
+        if (verbose) print(paste("evaluating neighbor", neighbor, "of current focal", focal))
+        if (cost[neighbor] + min_dist[focal] < min_dist[neighbor]) {
+          min_dist[neighbor] <- cost[neighbor] + min_dist[focal]
+          if (verbose) print(paste("shortest path to", neighbor, "now", min_dist[neighbor], "via patch", focal))
+          if (store_path) path[[neighbor]] <- c(path[[focal]], focal)
+        } else {
+          if (verbose) print (paste("path to", neighbor, "unchanged"))
+        }
       }
     }
+    visited[focal] <- TRUE
   }
-
-  return(dist[n*m])
+  return(min_dist[n*m])
 }
 
 # part one:
-calc_least_cost_path("day15_input_test.txt") == 40 # 0.063 sec
-calc_least_cost_path("day15_input.txt") == 583 # 3.002 sec
+calc_least_cost_path("day15_input_test.txt") == 40 # 0.02 sec
+calc_least_cost_path("day15_input.txt") == 583 # 0.9 sec
 
 # part two:
 calc_least_cost_path("day15_input_test.txt", use_full = TRUE) == 315 # 0.226 sec
-calc_least_cost_path("day15_input.txt", use_full = TRUE) == 2927 # 4554 sec, 1.2 hrs
+calc_least_cost_path("day15_input.txt", use_full = TRUE) == 2927 # 11 minutes
 
 ```
 
