@@ -381,6 +381,191 @@ A spatial puzzle! We have to instruct amphipods of four types of amphipod, A, B,
 
 Amphipods can only move into spaces that are empty and can move at most twice (once to the empty hallway, and once into their correct room. The cost of moving once space for an A amphipod is 1, for a B is 10, for a C is 100 and for a D is 1000, and we want to assort them using a minimal cost.
 
+```r
+
+
+rm(list = ls())
+
+library(gtools)
+
+find_amphipod_neighbors <- function(state, amphipod_names, nrow_A = 4, ncol_A = 11) {
+  target_x <- rep(NA, length(amphipod_names))
+  target_ys <- 2:(nrow_A - 1)
+  for (i in seq_along(amphipod_names)) {
+    target_x[i] <- which(LETTERS == amphipod_names[i]) * 2 + 1
+  }
+  amphipod_i <- as.numeric(strsplit(state, ",")[[1]])
+  n_amphipods <- length(amphipod_i)
+  amphipod_x <- (amphipod_i - 1) %/% nrow_A + 1
+  amphipod_y <- (amphipod_i - 1) %% nrow_A + 1
+  neighbor_states <- character()
+  piece_moved <- character()
+  num_moves <- character()
+  travel_cost <- numeric()
+  for (i in seq_len(n_amphipods)) {
+
+    focal_name <- amphipod_names[i]
+    focal_cost <- 10^(which(LETTERS == amphipod_names[i]) - 1)
+
+    # is focal in the hall now?
+    in_hall <- amphipod_y[i] == 1
+    # can focal leave their room (if they are in a room)
+    stuck_in_room <- any(amphipod_x == amphipod_x[i] & amphipod_y < amphipod_y[i])
+    # what spots are available in the hallway, relative to focal?
+    hall_x <- setdiff(1:ncol_A, target_x)
+    left_stop <- max(c(0, amphipod_x[which(amphipod_y == 1 & amphipod_x < amphipod_x[i])]))
+    right_stop <- min(c((ncol_A + 1), amphipod_x[which(amphipod_y == 1 & amphipod_x > amphipod_x[i])]))
+    open_hall_x <- hall_x[which((left_stop < hall_x & hall_x < amphipod_x[i]) |
+      (amphipod_x[i] < hall_x & hall_x < right_stop))]
+    # is there anyone in-between focal and the target in the hallway?
+    target_path_blocked <- any(amphipod_x[i] < amphipod_x & amphipod_x < target_x[i] & amphipod_y == 1) |
+      any(target_x[i] < amphipod_x & amphipod_x < amphipod_x[i] & amphipod_y == 1)
+    # do we want to go to target now?
+    who_in_target <- which(amphipod_x %in% target_x[i])
+    no_outsiders <- length(who_in_target) == 0 | all(amphipod_names[who_in_target] == focal_name)
+    open_target_y <- setdiff(target_ys, amphipod_y[who_in_target])
+    wants_target <- length(open_target_y) > 0 & no_outsiders & amphipod_x[i] != target_x[i]
+    # does focal want to move?
+    wants_to_move <- amphipod_x[i] != target_x[i] | !all(amphipod_names[who_in_target] == focal_name)
+
+    if (wants_to_move & !stuck_in_room) {
+      if (wants_target & !target_path_blocked) {
+        # move into the deepest spot in target
+        new_amphipod_i <- amphipod_i
+        new_amphipod_x <- amphipod_x
+        new_amphipod_y <- amphipod_y
+        new_amphipod_x[i] <- target_x[i]
+        new_amphipod_y[i] <- max(open_target_y)
+        new_amphipod_i[i] <- nrow_A * (new_amphipod_x[i] - 1) + new_amphipod_y[i]
+        new_state <- paste(new_amphipod_i, collapse = ",")
+        trip_num_moves <- (amphipod_y[i] - 1) + abs(new_amphipod_x[i] - amphipod_x[i]) + (new_amphipod_y[i] - 1)
+        # store in growing vectors
+        num_moves <- c(num_moves, trip_num_moves)
+        travel_cost <- c(travel_cost, focal_cost * trip_num_moves)
+        neighbor_states <- c(neighbor_states, new_state)
+        piece_moved <- c(piece_moved, focal_name)
+      }
+      # not ELSE IF
+      if (!in_hall & length(open_hall_x) > 0) {
+        # move into each open spot in the hall
+        for (spot in open_hall_x) {
+          new_amphipod_i <- amphipod_i
+          new_amphipod_x <- amphipod_x
+          new_amphipod_y <- amphipod_y
+          new_amphipod_x[i] <- spot
+          new_amphipod_y[i] <- 1
+          new_amphipod_i[i] <- nrow_A * (new_amphipod_x[i] - 1) + new_amphipod_y[i]
+          new_state <- paste(new_amphipod_i, collapse = ",")
+          trip_num_moves <- (amphipod_y[i] - 1) + abs(new_amphipod_x[i] - amphipod_x[i]) + (new_amphipod_y[i] - 1)
+          # store in growing vectors
+          num_moves <- c(num_moves, trip_num_moves)
+          travel_cost <- c(travel_cost, focal_cost * trip_num_moves)
+          neighbor_states <- c(neighbor_states, new_state)
+          piece_moved <- c(piece_moved, focal_name)
+        }
+      }
+    }
+  }
+  out <- data.frame(state = neighbor_states, piece = piece_moved, num_moves = num_moves, travel_cost = travel_cost)
+  return(out)
+}
+
+
+score_shortest_path <- function(file) {
+
+  x <- readLines(file)
+  x <- gsub(" ", ".", x)
+  A <- matrix(NA, ncol = nchar(x[1]), nrow = length(x))
+  for (i in seq_len(nrow(A))) A[i,] <- strsplit(x[i], "")[[1]]
+  A <- A[-1,]
+  A <- A[,-1]
+  A <- A[,-12]
+
+  n_amphipods <- sum(A %in% LETTERS)
+  amphipod_spots <- which(A %in% LETTERS)
+  amphipod_init <- A[amphipod_spots]
+  o <- order(amphipod_init)
+  amphipod_names <- amphipod_init[o]
+  amphipod_i <- amphipod_spots[o] # now locating the *sorted* amphipods c(A, A, B, B, ... etc)
+  init_state <- paste(amphipod_i, collapse = ",")
+
+  n_per_room <- as.integer(table(amphipod_names)[1])
+  n_rooms <- 4
+  A_orders <- apply(permutations(n_per_room, n_per_room, amphipod_spots[amphipod_names == "A"]), 1, function(z) paste(z, collapse = ","))
+  B_orders <- apply(permutations(n_per_room, n_per_room, amphipod_spots[amphipod_names == "B"]), 1, function(z) paste(z, collapse = ","))
+  C_orders <- apply(permutations(n_per_room, n_per_room, amphipod_spots[amphipod_names == "C"]), 1, function(z) paste(z, collapse = ","))
+  D_orders <- apply(permutations(n_per_room, n_per_room, amphipod_spots[amphipod_names == "D"]), 1, function(z) paste(z, collapse = ","))
+  goal_states <- apply(expand.grid(A_orders, B_orders, C_orders, D_orders), 1, function(z) paste(z, collapse = ","))
+
+  #############
+
+  n_steps <- 25
+  check_states <- init_state
+  new_states <- character()
+  states <- check_states
+  for (step in seq_len(n_steps)) {
+    for (state in check_states) new_states <- c(new_states, find_amphipod_neighbors(state, amphipod_names = amphipod_names, nrow_A = nrow(A))$state)
+    check_states <- new_states[!new_states %in% states]
+    check_states <- unique(check_states)
+    cat(length(check_states), "\n")
+    states <- c(states, check_states)
+  }
+  states <- unique(states)
+
+  sum(goal_states %in% states)
+  # in part one, only 4 goal states are reachable in the test data; all 16 goal states reached in the real data
+
+  length(states) == 38333 # test data, part one
+  length(states) == 235718 # real data, part one
+  length(states) == 480345 # test data, part two
+  length(states) == 281065 # real data, part two
+
+  n_states <- length(states)
+
+  # initialize algorithm components
+  min_dist <- rep(Inf, times = n_states)
+  min_dist[which(states == init_state)] <- 0
+  min_dist_neighbor <- rep(NA, times = n_states)
+  visited <- rep(FALSE, times = n_states)
+
+  verbose <- FALSE
+
+  # run search loop
+
+  while (!all(visited)) {
+    if (sum(visited) %% 100 == 0) print(mean(visited))
+    # ...find the unvisited node with the current shortest distance from starting node...
+    focal <- which(!visited & min_dist == min(min_dist[!visited]))[1]
+    if (verbose) cat("Visiting node", states[focal], "with current shortest distance", min_dist[focal], "\n")
+    # identify neighbors using rules of the game
+    neighbors <- find_amphipod_neighbors(states[focal], amphipod_names, nrow_A = nrow(A))
+    neighbors_i <- match(neighbors$state, states)
+    for (i in seq_len(nrow(neighbors))) {
+      if (!visited[neighbors_i[i]]) {
+        if (verbose) print(paste("neighborsevaluating neighbor", states[neighbors_i[i]], "of current focal", states[focal]))
+        if (neighbors$travel_cost[i] + min_dist[focal] < min_dist[neighbors_i[i]]) {
+          min_dist[neighbors_i[i]] <- neighbors$travel_cost[i] + min_dist[focal]
+          min_dist_neighbor[neighbors_i[i]] <- focal
+          if (verbose) print(paste("shortest path to", states[neighbors_i[i]], "now", min_dist[neighbors_i[i]], "via patch", states[focal]))
+        } else {
+          if (verbose) print (paste("path to", states[neighbors_i[i]], "unchanged"))
+        }
+      }
+    }
+    visited[focal] <- TRUE
+  }
+
+  return(min(min_dist[states %in% goal_states]))
+
+}
+
+score_shortest_path("day23_input_test.txt") == 12521
+score_shortest_path("day23_input.txt") == 15237
+score_shortest_path("day23_input_test_2.txt") == 44169
+score_shortest_path("day23_input_2.txt") == 47509
+
+```
+
 
 
 # Day 22: Reactor Reboot
@@ -735,7 +920,7 @@ play_stochastic_game <- function(p1_pos, p2_pos, verbose = FALSE) {
   winning_score <- 21
 
   # initialize an empty array to store timeline counts for each turn
-  A <- array(c(0L, 0L, 0L, 0L), dim = c(10, winning_score, 10, winning_score, n_turns + 1))
+  A <- array(c(0L, 0L, 0L, 0L, 0L), dim = c(10, winning_score, 10, winning_score, n_turns + 1))
 
   # initialize 'turn 0' before the first roll
   p1_score <- 0L
